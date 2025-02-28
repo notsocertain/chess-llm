@@ -140,6 +140,7 @@ export const calculateKingMoves = (row, col, piece, board) => {
     { row: 1, col: -1 }, { row: 1, col: 0 }, { row: 1, col: 1 }
   ];
   
+  // Regular king moves
   for (const dir of directions) {
     const newRow = row + dir.row;
     const newCol = col + dir.col;
@@ -148,6 +149,44 @@ export const calculateKingMoves = (row, col, piece, board) => {
       if (!board[newRow][newCol] || board[newRow][newCol].color !== piece.color) {
         moves.push({ row: newRow, col: newCol });
       }
+    }
+  }
+
+  // Castling moves
+  if (!piece.hasMoved) {
+    const backRow = piece.color === 'white' ? 7 : 0;
+    
+    // Kingside castling
+    if (board[backRow][7]?.type === 'rook' && 
+        !board[backRow][7].hasMoved && 
+        !board[backRow][6] && 
+        !board[backRow][5]) {
+      moves.push({ 
+        row: backRow, 
+        col: 6, 
+        isCastling: true,
+        rookMove: {
+          from: { row: backRow, col: 7 },
+          to: { row: backRow, col: 5 }
+        }
+      });
+    }
+
+    // Queenside castling
+    if (board[backRow][0]?.type === 'rook' && 
+        !board[backRow][0].hasMoved && 
+        !board[backRow][1] && 
+        !board[backRow][2] && 
+        !board[backRow][3]) {
+      moves.push({ 
+        row: backRow, 
+        col: 2, 
+        isCastling: true,
+        rookMove: {
+          from: { row: backRow, col: 0 },
+          to: { row: backRow, col: 3 }
+        }
+      });
     }
   }
   
