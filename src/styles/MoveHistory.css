@@ -1,0 +1,77 @@
+.move-history {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 10px;
+  background-color: #f9f9f9;
+  height: 480px; /* Match the height of the chess board */
+  width: 320px;
+  overflow-y: auto;
+  align-self: flex-start; /* Aligns to top within flex container */
+  box-sizing: border-box; /* Ensures padding doesn't affect overall width */
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.move-history h3 {
+  text-align: center;
+  margin-top: 0;
+  margin-bottom: 10px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #ddd;
+}
+
+.move-list {
+  height: calc(100% - 35px);
+  overflow-y: auto;
+}
+
+.move-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.move-list th {
+  text-align: left;
+  padding: 5px;
+  border-bottom: 1px solid #ddd;
+  font-weight: bold;
+}
+
+.move-list td {
+  padding: 5px;
+}
+
+.move-number {
+  width: 25px;
+  color: #666;
+  font-weight: bold;
+}
+
+.white-move, .black-move {
+  font-family: 'Courier New', monospace;
+}
+
+.no-moves {
+  color: #999;
+  text-align: center;
+  padding-top: 30px;
+  font-style: italic;
+}
+
+.even-row {
+  background-color: #f0f0f0;
+}
+
+.odd-row {
+  background-color: #ffffff;
+}
+
+.current-move {
+  background-color: #ffe0b2;
+}
+
+/* Highlight the last move */
+.move-list tr:last-child td:last-child:not(:empty),
+.move-list tr:last-child td:nth-last-child(2):not(:empty) {
+  font-weight: bold;
+  background-color: #ffe0b2;
+}

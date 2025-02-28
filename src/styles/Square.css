@@ -1,0 +1,87 @@
+.square {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+}
+
+.square.light {
+  background-color: #f0d9b5;
+}
+
+.square.dark {
+  background-color: #b58863;
+}
+
+.square.selected {
+  background-color: rgba(106, 190, 249, 0.5) !important;
+}
+
+.square.valid-move::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: rgba(106, 190, 249, 0.5);
+  position: absolute;
+}
+
+.piece {
+  width: 80%;
+  height: 80%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 40px;
+  z-index: 2;
+  user-select: none;
+}
+
+.piece-icon {
+  font-size: 2.5rem;
+  cursor: grab;
+}
+
+.piece-icon.white {
+  color: #fff;
+  text-shadow: 0 0 2px #000;
+}
+
+.piece-icon.black {
+  color: #000;
+}
+
+/* Style for kings in check */
+.check .piece-icon {
+  color: red !important;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Check indicator style */
+.check-indicator {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(255, 0, 0, 0.8);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-weight: bold;
+  font-size: 16px;
+}

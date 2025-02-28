@@ -1,0 +1,26 @@
+.chess-square {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chess-square.light {
+  background-color: #f0d9b5;
+}
+
+.chess-square.dark {
+  background-color: #b58863;
+}
+
+.chess-square:hover {
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+/* Style for the optional square notation */
+.square-notation {
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.4);
+}

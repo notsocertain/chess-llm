@@ -1,0 +1,12 @@
+.chess-board {
+  display: grid;
+  grid-template-columns: repeat(8, 60px);
+  grid-template-rows: repeat(8, 60px);
+  width: 480px;
+  height: 480px;
+  border: 5px solid #654321;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  position: left;
+}
+
+/* Add any additional styles for the chess board here */
