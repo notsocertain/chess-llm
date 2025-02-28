@@ -1,7 +1,7 @@
 import { isValidPosition } from './boardUtils';
 
 // Calculate possible moves for a pawn
-export const calculatePawnMoves = (row, col, piece, board) => {
+export const calculatePawnMoves = (row, col, piece, board, enPassantTarget = null) => {
   const moves = [];
   const direction = piece.color === 'white' ? -1 : 1;
   const startRow = piece.color === 'white' ? 6 : 1;
@@ -16,12 +16,26 @@ export const calculatePawnMoves = (row, col, piece, board) => {
     }
   }
   
-  // Captures
+  // Regular captures and en passant
   for (const captureCol of [col - 1, col + 1]) {
-    if (isValidPosition(row + direction, captureCol) && 
-        board[row + direction][captureCol] && 
-        board[row + direction][captureCol].color !== piece.color) {
-      moves.push({ row: row + direction, col: captureCol });
+    if (isValidPosition(row + direction, captureCol)) {
+      // Normal capture
+      if (board[row + direction][captureCol] && 
+          board[row + direction][captureCol].color !== piece.color) {
+        moves.push({ row: row + direction, col: captureCol });
+      }
+      // En passant capture
+      else if (enPassantTarget && 
+               row === (piece.color === 'white' ? 3 : 4) && // Correct rank for en passant
+               captureCol === enPassantTarget.pawnPosition.col && // Target pawn's column
+               piece.color !== enPassantTarget.color) { // Must be opposite color
+        moves.push({ 
+          row: row + direction, 
+          col: captureCol,
+          isEnPassant: true,
+          capturedPawnPosition: enPassantTarget.pawnPosition
+        });
+      }
     }
   }
   

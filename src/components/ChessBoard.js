@@ -27,6 +27,7 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
     white: false,
     black: false
   });
+  const [enPassantTarget, setEnPassantTarget] = useState(null);
 
   // Reset the board when a new game starts
   useEffect(() => {
@@ -66,7 +67,7 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
       if (piece && piece.color === currentPlayer) {
         setSelectedSquare({ row, col });
         // Calculate possible moves for this piece
-        const allMoves = calculatePossibleMoves(row, col, piece, board);
+        const allMoves = calculatePossibleMoves(row, col, piece, board, enPassantTarget);
         // Filter out moves that would put/leave the player in check
         const legalMoves = getLegalMoves(row, col, piece, board, allMoves);
         setPossibleMoves(legalMoves);
@@ -133,18 +134,43 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
   };
 
   const handleMove = (fromSquare, toSquare, piece, capturedPiece = null, isCastling = false) => {
-    // Determine if this move is a check or checkmate
-    const newBoard = JSON.parse(JSON.stringify(board)); // Get latest board state
+    const newBoard = JSON.parse(JSON.stringify(board));
+    
+    // Handle en passant capture
+    const selectedMove = possibleMoves.find(m => m.row === toSquare.row && m.col === toSquare.col);
+    if (selectedMove && selectedMove.isEnPassant) {
+      // Get the captured pawn before removing it
+      capturedPiece = board[selectedMove.capturedPawnPosition.row][selectedMove.capturedPawnPosition.col];
+      // Remove the captured pawn
+      newBoard[selectedMove.capturedPawnPosition.row][selectedMove.capturedPawnPosition.col] = null;
+    }
+
+    // Make the move
     newBoard[fromSquare.row][fromSquare.col] = null;
     newBoard[toSquare.row][toSquare.col] = piece;
-    
+
+    // Update the board state
+    setBoard(newBoard);
+
+    // Set en passant target if pawn moves two squares
+    if (piece.type === 'pawn' && Math.abs(toSquare.row - fromSquare.row) === 2) {
+      setEnPassantTarget({
+        row: fromSquare.row,
+        col: fromSquare.col,
+        pawnPosition: { row: toSquare.row, col: toSquare.col },
+        color: piece.color
+      });
+    } else {
+      setEnPassantTarget(null);
+    }
+
     const opponentColor = piece.color === 'white' ? 'black' : 'white';
     const isCheck = isInCheck(opponentColor, newBoard);
     const isCheckmate = isCheck && isInCheckmate(opponentColor, newBoard);
     const isCapture = capturedPiece !== null;
 
     // Create move object with proper notation
-    const move = {
+    const moveNotation = {
       piece,
       from: fromSquare,
       to: toSquare,
@@ -160,13 +186,13 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
     };
 
     // Call the onMove handler from parent component
-    onMove(move);
+    onMove(moveNotation);
   };
 
   const calculatePossibleMoves = (row, col, piece, board) => {
     switch (piece.type.toLowerCase()) {
       case 'pawn':
-        return calculatePawnMoves(row, col, piece, board);
+        return calculatePawnMoves(row, col, piece, board, enPassantTarget);
       case 'rook':
         return calculateRookMoves(row, col, piece, board);
       case 'knight':
