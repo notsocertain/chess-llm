@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Square from './Square';
-import { PIECE_COLORS } from '../constants/pieceData';
+// import { PIECE_COLORS } from '../constants/pieceData';
 import { initializeBoard } from '../utils/boardUtils';
 import { 
   calculatePawnMoves,

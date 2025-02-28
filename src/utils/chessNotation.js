@@ -26,7 +26,7 @@ export const moveToAlgebraicNotation = (move, isCapture = false, isCheck = false
   const fileLetters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   
   // Convert row/col to algebraic notation
-  const fromSquare = `${fileLetters[from.col]}${8 - from.row}`;
+//   const fromSquare = `${fileLetters[from.col]}${8 - from.row}`;
   const toSquare = `${fileLetters[to.col]}${8 - to.row}`;
   
   // Special moves
