@@ -81,13 +81,24 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
       
       if (isValidMove) {
         // Make the move
-        const newBoard = JSON.parse(JSON.stringify(board)); // Deep clone the board
+        const newBoard = JSON.parse(JSON.stringify(board));
         const piece = newBoard[selectedSquare.row][selectedSquare.col];
+        const move = possibleMoves.find(m => m.row === row && m.col === col);
         
-        // Check if this is a capture
+        // Update the hasMoved property
+        piece.hasMoved = true;
+        
+        // Handle castling
+        if (move.isCastling) {
+          // Move the rook
+          const rook = newBoard[move.rookMove.from.row][move.rookMove.from.col];
+          rook.hasMoved = true;
+          newBoard[move.rookMove.to.row][move.rookMove.to.col] = rook;
+          newBoard[move.rookMove.from.row][move.rookMove.from.col] = null;
+        }
+        
+        // Update king position
         const capturedPiece = newBoard[row][col];
-        
-        // Update the board
         newBoard[selectedSquare.row][selectedSquare.col] = null;
         newBoard[row][col] = piece;
         
@@ -98,7 +109,8 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
           { row: selectedSquare.row, col: selectedSquare.col },
           { row, col },
           piece,
-          capturedPiece
+          capturedPiece,
+          move.isCastling
         );
         
         // Reset selection
@@ -120,7 +132,7 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
     }
   };
 
-  const handleMove = (fromSquare, toSquare, piece, capturedPiece = null) => {
+  const handleMove = (fromSquare, toSquare, piece, capturedPiece = null, isCastling = false) => {
     // Determine if this move is a check or checkmate
     const newBoard = JSON.parse(JSON.stringify(board)); // Get latest board state
     newBoard[fromSquare.row][fromSquare.col] = null;
@@ -137,12 +149,13 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
       from: fromSquare,
       to: toSquare,
       capturedPiece,
-      // Add other move properties like castling, promotion if your game supports them
+      isCastling,
       notation: moveToAlgebraicNotation(
         { piece, from: fromSquare, to: toSquare },
         isCapture,
         isCheck,
-        isCheckmate
+        isCheckmate,
+        isCastling
       )
     };
 

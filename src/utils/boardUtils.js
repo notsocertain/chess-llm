@@ -23,7 +23,7 @@ const setBackRow = (board, row, color) => {
   const pieceOrder = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
   
   for (let col = 0; col < 8; col++) {
-    board[row][col] = { type: pieceOrder[col], color };
+    board[row][col] = { type: pieceOrder[col], color, hasMoved: false };
   }
 };
 
