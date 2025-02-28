@@ -19,6 +19,7 @@ import {
 import { moveToAlgebraicNotation } from '../utils/chessNotation';
 import '../styles/ChessBoard.css';
 import PromotionDialog from './PromotionDialog';
+import { getBestMove } from '../utils/chessAI';
 
 const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
   const [board, setBoard] = useState(initializeBoard());
@@ -60,6 +61,56 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
       onGameOver && onGameOver('stalemate');
     }
   }, [board, currentPlayer, onGameOver]);
+
+  useEffect(() => {
+    // Make AI move when it's black's turn
+    if (currentPlayer === 'black') {
+      const aiMoves = [];
+      // Collect all possible moves for black pieces
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const piece = board[row][col];
+          if (piece && piece.color === 'black') {
+            const moves = calculatePossibleMoves(row, col, piece, board);
+            const legalMoves = getLegalMoves(row, col, piece, board, moves);
+            legalMoves.forEach(move => {
+              aiMoves.push({
+                from: { row, col },
+                to: move,
+                piece
+              });
+            });
+          }
+        }
+      }
+      
+      if (aiMoves.length > 0) {
+        setTimeout(() => {
+          const move = getBestMove(board, aiMoves);
+          const newBoard = JSON.parse(JSON.stringify(board));
+          const piece = newBoard[move.from.row][move.from.col];
+          const capturedPiece = newBoard[move.to.row][move.to.col];
+          
+          // Make the move on the board
+          newBoard[move.to.row][move.to.col] = piece;
+          newBoard[move.from.row][move.from.col] = null;
+          
+          // Update the board
+          setBoard(newBoard);
+          
+          // Notify parent about the move
+          completeMove(
+            newBoard,
+            move.from,
+            move.to,
+            piece,
+            capturedPiece,
+            false // isCastling
+          );
+        }, 500);
+      }
+    }
+  }, [currentPlayer, board]);
 
   const handleSquareClick = (row, col) => {
     // If no piece is selected yet
