@@ -18,6 +18,7 @@ import {
 } from '../utils/checkDetection';
 import { moveToAlgebraicNotation } from '../utils/chessNotation';
 import '../styles/ChessBoard.css';
+import PromotionDialog from './PromotionDialog';
 
 const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
   const [board, setBoard] = useState(initializeBoard());
@@ -28,6 +29,7 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
     black: false
   });
   const [enPassantTarget, setEnPassantTarget] = useState(null);
+  const [promotionSquare, setPromotionSquare] = useState(null);
 
   // Reset the board when a new game starts
   useEffect(() => {
@@ -139,12 +141,29 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
     // Handle en passant capture
     const selectedMove = possibleMoves.find(m => m.row === toSquare.row && m.col === toSquare.col);
     if (selectedMove && selectedMove.isEnPassant) {
-      // Get the captured pawn before removing it
       capturedPiece = board[selectedMove.capturedPawnPosition.row][selectedMove.capturedPawnPosition.col];
-      // Remove the captured pawn
       newBoard[selectedMove.capturedPawnPosition.row][selectedMove.capturedPawnPosition.col] = null;
     }
 
+    // Handle pawn promotion
+    if (piece.type === 'pawn' && (toSquare.row === 0 || toSquare.row === 7)) {
+      setPromotionSquare({
+        row: toSquare.row,
+        col: toSquare.col,
+        color: piece.color,
+        // Store move information
+        fromSquare,
+        toSquare,
+        capturedPiece,
+        isCastling
+      });
+      return; // Wait for promotion selection
+    }
+
+    completeMove(newBoard, fromSquare, toSquare, piece, capturedPiece, isCastling);
+  };
+
+  const completeMove = (newBoard, fromSquare, toSquare, piece, capturedPiece, isCastling) => {
     // Make the move
     newBoard[fromSquare.row][fromSquare.col] = null;
     newBoard[toSquare.row][toSquare.col] = piece;
@@ -189,6 +208,31 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
     onMove(moveNotation);
   };
 
+  const handlePromotion = (pieceType) => {
+    if (!promotionSquare) return;
+
+    const newBoard = JSON.parse(JSON.stringify(board));
+    const promotedPiece = {
+      type: pieceType,
+      color: promotionSquare.color,
+      hasMoved: true,
+      promoted: true
+    };
+
+    newBoard[promotionSquare.row][promotionSquare.col] = promotedPiece;
+    
+    // Use stored move information
+    completeMove(
+      newBoard,
+      promotionSquare.fromSquare,
+      promotionSquare.toSquare,
+      promotedPiece,
+      promotionSquare.capturedPiece,
+      promotionSquare.isCastling
+    );
+    setPromotionSquare(null);
+  };
+
   const calculatePossibleMoves = (row, col, piece, board) => {
     switch (piece.type.toLowerCase()) {
       case 'pawn':
@@ -221,12 +265,12 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
         const isValidMove = possibleMoves.some(
           move => move.row === row && move.col === col
         );
-        
+
         // Check if this square contains a king in check
         const isCheck = piece && 
           piece.type.toLowerCase() === 'king' && 
           checkStatus[piece.color];
-        
+
         squares.push(
           <Square
             key={`${row}-${col}`}
@@ -248,6 +292,13 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
       {renderBoard()}
       {checkStatus[currentPlayer] && (
         <div className="check-indicator">Check!</div>
+      )}
+      {promotionSquare && (
+        <PromotionDialog
+          color={promotionSquare.color}
+          onSelect={handlePromotion}
+          onClose={() => setPromotionSquare(null)}
+        />
       )}
     </div>
   );
