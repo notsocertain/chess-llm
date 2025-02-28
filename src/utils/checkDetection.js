@@ -134,14 +134,16 @@ export const isInCheck = (color, board) => {
 
 // Simulate a move including potential pawn promotion and check if it results in check
 export const wouldBeInCheckAfterMove = (fromRow, fromCol, toRow, toCol, board, color, promotionPiece = null) => {
-  // Create a deep copy of the board
   const boardCopy = JSON.parse(JSON.stringify(board));
-  
-  // Store the target piece (if any) in case we need to restore it
-  const capturedPiece = boardCopy[toRow][toCol];
   const movingPiece = boardCopy[fromRow][fromCol];
   
-  // Make the move on the copy
+  // Handle en passant capture
+  if (movingPiece.type === PIECE_TYPES.PAWN && 
+      fromCol !== toCol && 
+      !boardCopy[toRow][toCol]) {
+    boardCopy[fromRow][toCol] = null; // Remove captured pawn
+  }
+
   boardCopy[toRow][toCol] = movingPiece;
   boardCopy[fromRow][fromCol] = null;
   
