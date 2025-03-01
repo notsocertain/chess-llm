@@ -10,7 +10,7 @@ function App() {
         <Game />
       </main>
       <footer>
-        <p>Chess Game - Made with React</p>
+        <p>Simple AI</p>
       </footer>
     </div>
   );
