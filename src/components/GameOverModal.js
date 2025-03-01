@@ -1,31 +1,51 @@
 import React from 'react';
+import { PIECE_COLORS } from '../constants/pieceData';
 import '../styles/GameOverModal.css';
 
-const GameOverModal = ({ isOpen, gameResult, winner, onRestart }) => {
+const GameOverModal = ({ isOpen, gameResult, winner, onRestart, onSelectColor }) => {
   if (!isOpen) return null;
 
-  let resultMessage = '';
+  let message = '';
   if (gameResult === 'checkmate') {
-    resultMessage = `Checkmate! ${winner === 'white' ? 'White' : 'Black'} wins!`;
+    message = `Checkmate! ${winner === PIECE_COLORS.WHITE ? 'White' : 'Black'} wins.`;
   } else if (gameResult === 'stalemate') {
-    resultMessage = 'Stalemate! The game is a draw.';
+    message = 'Stalemate! The game is a draw.';
   } else if (gameResult === 'draw') {
-    resultMessage = 'Draw!';
+    message = 'Draw agreed.';
   }
 
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <h2 className="game-over-title">Game Over</h2>
-        <p className="result-message">{resultMessage}</p>
-        {winner && (
-          <div className={`winner-indicator ${winner}`}>
-            {winner.charAt(0).toUpperCase() + winner.slice(1)}
+        <h2>{gameResult ? 'Game Over' : 'New Game'}</h2>
+
+        {gameResult ? (
+          <p className="result-message">{message}</p>
+        ) : (
+          <div className="color-selection">
+            <p>Choose your color:</p>
+            <div className="button-group">
+              <button 
+                className="color-button white-button" 
+                onClick={() => onSelectColor(PIECE_COLORS.WHITE)}
+              >
+                Play as White
+              </button>
+              <button 
+                className="color-button black-button" 
+                onClick={() => onSelectColor(PIECE_COLORS.BLACK)}
+              >
+                Play as Black
+              </button>
+            </div>
           </div>
         )}
-        <button className="restart-button" onClick={onRestart}>
-          Play Again
-        </button>
+
+        {gameResult && (
+          <button className="restart-button" onClick={onRestart}>
+            New Game
+          </button>
+        )}
       </div>
     </div>
   );

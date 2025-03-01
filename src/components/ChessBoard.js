@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Square from './Square';
-// import { PIECE_COLORS } from '../constants/pieceData';
+import { PIECE_COLORS } from '../constants/pieceData';
 import { initializeBoard } from '../utils/boardUtils';
 import { 
   calculatePawnMoves,
@@ -21,7 +21,7 @@ import '../styles/ChessBoard.css';
 import PromotionDialog from './PromotionDialog';
 import { getBestMove } from '../utils/chessAI';
 
-const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
+const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColor }) => {
   const [board, setBoard] = useState(initializeBoard());
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [possibleMoves, setPossibleMoves] = useState([]);
@@ -31,6 +31,72 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
   });
   const [enPassantTarget, setEnPassantTarget] = useState(null);
   const [promotionSquare, setPromotionSquare] = useState(null);
+
+  // Memoize the calculatePossibleMoves function to avoid recreating it on every render
+  const calculatePossibleMoves = useCallback((row, col, piece, board, enPassantTarget) => {
+    switch (piece.type.toLowerCase()) {
+      case 'pawn':
+        return calculatePawnMoves(row, col, piece, board, enPassantTarget);
+      case 'rook':
+        return calculateRookMoves(row, col, piece, board);
+      case 'knight':
+        return calculateKnightMoves(row, col, piece, board);
+      case 'bishop':
+        return calculateBishopMoves(row, col, piece, board);
+      case 'queen':
+        return calculateQueenMoves(row, col, piece, board);
+      case 'king':
+        return calculateKingMoves(row, col, piece, board);
+      default:
+        return [];
+    }
+  }, []);
+
+  // Memoize completeMove function to avoid recreating it on every render
+  const completeMove = useCallback((newBoard, fromSquare, toSquare, piece, capturedPiece, isCastling) => {
+    // Make the move
+    newBoard[fromSquare.row][fromSquare.col] = null;
+    newBoard[toSquare.row][toSquare.col] = piece;
+
+    // Update the board state
+    setBoard(newBoard);
+
+    // Set en passant target if pawn moves two squares
+    if (piece.type === 'pawn' && Math.abs(toSquare.row - fromSquare.row) === 2) {
+      setEnPassantTarget({
+        row: fromSquare.row,
+        col: fromSquare.col,
+        pawnPosition: { row: toSquare.row, col: toSquare.col },
+        color: piece.color
+      });
+    } else {
+      setEnPassantTarget(null);
+    }
+
+    const opponentColor = piece.color === 'white' ? 'black' : 'white';
+    const isCheck = isInCheck(opponentColor, newBoard);
+    const isCheckmate = isCheck && isInCheckmate(opponentColor, newBoard);
+    const isCapture = capturedPiece !== null;
+
+    // Create move object with proper notation
+    const moveNotation = {
+      piece,
+      from: fromSquare,
+      to: toSquare,
+      capturedPiece,
+      isCastling,
+      notation: moveToAlgebraicNotation(
+        { piece, from: fromSquare, to: toSquare },
+        isCapture,
+        isCheck,
+        isCheckmate,
+        isCastling
+      )
+    };
+
+    // Call the onMove handler from parent component
+    onMove(moveNotation);
+  }, [onMove]);
 
   // Reset the board when a new game starts
   useEffect(() => {
@@ -62,15 +128,17 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
     }
   }, [board, currentPlayer, onGameOver]);
 
+  // Make AI move when it's the computer's turn
   useEffect(() => {
-    // Make AI move when it's black's turn
-    if (currentPlayer === 'black') {
+    const isComputerTurn = currentPlayer !== playerColor;
+    
+    if (isComputerTurn) {
       const aiMoves = [];
-      // Collect all possible moves for black pieces
+      // Collect all possible moves for computer pieces
       for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
           const piece = board[row][col];
-          if (piece && piece.color === 'black') {
+          if (piece && piece.color === currentPlayer) {
             const moves = calculatePossibleMoves(row, col, piece, board);
             const legalMoves = getLegalMoves(row, col, piece, board, moves);
             legalMoves.forEach(move => {
@@ -110,9 +178,12 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
         }, 500);
       }
     }
-  }, [currentPlayer, board]);
+  }, [currentPlayer, board, playerColor, calculatePossibleMoves, completeMove]);
 
   const handleSquareClick = (row, col) => {
+    // Only allow clicks for the human player's turn
+    if (currentPlayer !== playerColor) return;
+    
     // If no piece is selected yet
     if (!selectedSquare) {
       const piece = board[row][col];
@@ -174,7 +245,7 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
       // If clicking on another piece of the same color, select that piece instead
       else if (board[row][col] && board[row][col].color === currentPlayer) {
         setSelectedSquare({ row, col });
-        const allMoves = calculatePossibleMoves(row, col, board[row][col], board);
+        const allMoves = calculatePossibleMoves(row, col, board[row][col], board, enPassantTarget);
         const legalMoves = getLegalMoves(row, col, board[row][col], board, allMoves);
         setPossibleMoves(legalMoves);
       } 
@@ -214,51 +285,6 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
     completeMove(newBoard, fromSquare, toSquare, piece, capturedPiece, isCastling);
   };
 
-  const completeMove = (newBoard, fromSquare, toSquare, piece, capturedPiece, isCastling) => {
-    // Make the move
-    newBoard[fromSquare.row][fromSquare.col] = null;
-    newBoard[toSquare.row][toSquare.col] = piece;
-
-    // Update the board state
-    setBoard(newBoard);
-
-    // Set en passant target if pawn moves two squares
-    if (piece.type === 'pawn' && Math.abs(toSquare.row - fromSquare.row) === 2) {
-      setEnPassantTarget({
-        row: fromSquare.row,
-        col: fromSquare.col,
-        pawnPosition: { row: toSquare.row, col: toSquare.col },
-        color: piece.color
-      });
-    } else {
-      setEnPassantTarget(null);
-    }
-
-    const opponentColor = piece.color === 'white' ? 'black' : 'white';
-    const isCheck = isInCheck(opponentColor, newBoard);
-    const isCheckmate = isCheck && isInCheckmate(opponentColor, newBoard);
-    const isCapture = capturedPiece !== null;
-
-    // Create move object with proper notation
-    const moveNotation = {
-      piece,
-      from: fromSquare,
-      to: toSquare,
-      capturedPiece,
-      isCastling,
-      notation: moveToAlgebraicNotation(
-        { piece, from: fromSquare, to: toSquare },
-        isCapture,
-        isCheck,
-        isCheckmate,
-        isCastling
-      )
-    };
-
-    // Call the onMove handler from parent component
-    onMove(moveNotation);
-  };
-
   const handlePromotion = (pieceType) => {
     if (!promotionSquare) return;
 
@@ -284,30 +310,19 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver }) => {
     setPromotionSquare(null);
   };
 
-  const calculatePossibleMoves = (row, col, piece, board) => {
-    switch (piece.type.toLowerCase()) {
-      case 'pawn':
-        return calculatePawnMoves(row, col, piece, board, enPassantTarget);
-      case 'rook':
-        return calculateRookMoves(row, col, piece, board);
-      case 'knight':
-        return calculateKnightMoves(row, col, piece, board);
-      case 'bishop':
-        return calculateBishopMoves(row, col, piece, board);
-      case 'queen':
-        return calculateQueenMoves(row, col, piece, board);
-      case 'king':
-        return calculateKingMoves(row, col, piece, board);
-      default:
-        return [];
-    }
-  };
-
   // Generate the chessboard
   const renderBoard = () => {
     const squares = [];
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
+    
+    // Determine if we should flip the board
+    const isFlipped = playerColor === PIECE_COLORS.BLACK;
+    
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        // Calculate the actual row and column based on whether the board is flipped
+        const row = isFlipped ? 7 - r : r;
+        const col = isFlipped ? 7 - c : c;
+        
         const isLight = (row + col) % 2 === 0;
         const piece = board[row][col];
         const isSelected = selectedSquare && 

@@ -11,6 +11,8 @@ const Game = () => {
   const [gameOver, setGameOver] = useState(false);
   const [gameResult, setGameResult] = useState(null);
   const [winner, setWinner] = useState(null);
+  const [playerColor, setPlayerColor] = useState(PIECE_COLORS.WHITE);
+  const [showNewGameModal, setShowNewGameModal] = useState(true);
 
   const handleMove = (move) => {
     // Add the move to history
@@ -26,12 +28,25 @@ const Game = () => {
     setWinner(winningColor);
   };
 
+  const handleColorSelect = (color) => {
+    setPlayerColor(color);
+    setCurrentPlayer(PIECE_COLORS.WHITE); // Always start with white
+    setShowNewGameModal(false);
+    
+    // If player chooses black, trigger AI to make the first move (as white)
+    if (color === PIECE_COLORS.BLACK) {
+      // Game starts with white, so the current player is already white
+      // The ChessBoard will handle the AI move in its useEffect
+    }
+  };
+
   const restartGame = () => {
     setCurrentPlayer(PIECE_COLORS.WHITE);
     setMoveHistory([]);
     setGameOver(false);
     setGameResult(null);
     setWinner(null);
+    setShowNewGameModal(true);
   };
 
   return (
@@ -39,7 +54,11 @@ const Game = () => {
       <div className="game-info">
         <div className="player-turn">
           Current turn: <span className={currentPlayer}>{currentPlayer}</span>
+          <div className="player-info">
+  <span className={playerColor} style={{ fontStyle: 'italic', fontWeight: 'normal' }}>Player: {playerColor}</span>
+</div>
         </div>
+
         <button className="restart-game-button" onClick={restartGame}>
           New Game
         </button>
@@ -51,16 +70,18 @@ const Game = () => {
           onMove={handleMove} 
           moveHistory={moveHistory}
           onGameOver={handleGameOver}
+          playerColor={playerColor}
         />
 
         <MoveHistory moves={moveHistory} />
       </div>
       
       <GameOverModal 
-        isOpen={gameOver} 
-        gameResult={gameResult} 
+        isOpen={gameOver || showNewGameModal}
+        gameResult={gameResult}
         winner={winner}
-        onRestart={restartGame} 
+        onRestart={restartGame}
+        onSelectColor={handleColorSelect}
       />
     </div>
   );
