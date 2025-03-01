@@ -54,7 +54,7 @@ Output format:
 `;
 
 // Define API Key securely
-const API_KEY = "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"; // Replace with your actual API key
+const API_KEY = "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"; // Replace with your actual API key
 
 async function fetchChatResponse(moveHistory) {
     const API_URL = "https://api.groq.com/openai/v1/chat/completions";
