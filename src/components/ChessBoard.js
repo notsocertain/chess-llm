@@ -17,9 +17,10 @@ import {
   getLegalMoves
 } from '../utils/checkDetection';
 import { moveToAlgebraicNotation } from '../utils/chessNotation';
+import { getLLMNextMove } from '../utils/llm';
+import { getBestMove } from '../utils/chessAI';
 import '../styles/ChessBoard.css';
 import PromotionDialog from './PromotionDialog';
-import { getBestMove } from '../utils/chessAI';
 
 const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColor }) => {
   const [board, setBoard] = useState(initializeBoard());
@@ -31,6 +32,7 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
   });
   const [enPassantTarget, setEnPassantTarget] = useState(null);
   const [promotionSquare, setPromotionSquare] = useState(null);
+  const [isAiThinking, setIsAiThinking] = useState(false);
 
   // Memoize the calculatePossibleMoves function to avoid recreating it on every render
   const calculatePossibleMoves = useCallback((row, col, piece, board, enPassantTarget) => {
@@ -53,10 +55,17 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
   }, []);
 
   // Memoize completeMove function to avoid recreating it on every render
-  const completeMove = useCallback((newBoard, fromSquare, toSquare, piece, capturedPiece, isCastling) => {
+  const completeMove = useCallback((newBoard, fromSquare, toSquare, piece, capturedPiece, isCastling, rookMove = null) => {
     // Make the move
     newBoard[fromSquare.row][fromSquare.col] = null;
     newBoard[toSquare.row][toSquare.col] = piece;
+
+    // Handle castling - move the rook as well
+    if (isCastling && rookMove) {
+      const rook = newBoard[rookMove.from.row][rookMove.from.col];
+      newBoard[rookMove.to.row][rookMove.to.col] = rook;
+      newBoard[rookMove.from.row][rookMove.from.col] = null;
+    }
 
     // Update the board state
     setBoard(newBoard);
@@ -86,11 +95,10 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
       capturedPiece,
       isCastling,
       notation: moveToAlgebraicNotation(
-        { piece, from: fromSquare, to: toSquare },
+        { piece, from: fromSquare, to: toSquare, isCastling },
         isCapture,
         isCheck,
-        isCheckmate,
-        isCastling
+        isCheckmate
       )
     };
 
@@ -132,53 +140,170 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
   useEffect(() => {
     const isComputerTurn = currentPlayer !== playerColor;
     
-    if (isComputerTurn) {
-      const aiMoves = [];
-      // Collect all possible moves for computer pieces
-      for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-          const piece = board[row][col];
-          if (piece && piece.color === currentPlayer) {
-            const moves = calculatePossibleMoves(row, col, piece, board);
-            const legalMoves = getLegalMoves(row, col, piece, board, moves);
-            legalMoves.forEach(move => {
-              aiMoves.push({
-                from: { row, col },
-                to: move,
-                piece
-              });
-            });
+    if (isComputerTurn && !isAiThinking) {
+      const makeAIMove = async () => {
+        setIsAiThinking(true);
+
+        try {
+          // First try the LLM approach
+          const move = await getLLMNextMove(moveHistory, board, currentPlayer);
+          
+          if (move) {
+            const newBoard = JSON.parse(JSON.stringify(board));
+            const piece = newBoard[move.from.row][move.from.col];
+            const capturedPiece = newBoard[move.to.row][move.to.col];
+            
+            // Update piece properties
+            piece.hasMoved = true;
+            
+            // Make the move on the board
+            const isCastling = piece.type === 'king' && Math.abs(move.to.col - move.from.col) > 1;
+            let rookMove = null;
+            
+            // Handle castling - identify rook move
+            if (isCastling) {
+              const backRow = piece.color === 'white' ? 7 : 0;
+              
+              if (move.to.col > move.from.col) {  // Kingside
+                rookMove = {
+                  from: { row: backRow, col: 7 },
+                  to: { row: backRow, col: 5 }
+                };
+              } else {  // Queenside
+                rookMove = {
+                  from: { row: backRow, col: 0 },
+                  to: { row: backRow, col: 3 }
+                };
+              }
+            }
+            
+            // Complete the move
+            completeMove(
+              newBoard,
+              move.from,
+              move.to,
+              piece,
+              capturedPiece,
+              isCastling,
+              rookMove
+            );
+          } else {
+            console.log("Using chessAI fallback logic for move generation");
+            
+            // Generate all possible AI moves
+            const allMoves = [];
+            for (let row = 0; row < 8; row++) {
+              for (let col = 0; col < 8; col++) {
+                const piece = board[row][col];
+                if (piece && piece.color === currentPlayer) {
+                  const moves = calculatePossibleMoves(row, col, piece, board, enPassantTarget);
+                  const legalMoves = getLegalMoves(row, col, piece, board, moves);
+                  legalMoves.forEach(move => {
+                    allMoves.push({
+                      from: { row, col },
+                      to: move,
+                      piece
+                    });
+                  });
+                }
+              }
+            }
+            
+            if (allMoves.length > 0) {
+              // Use the AI evaluation function to pick the best move
+              const bestMove = getBestMove(board, allMoves);
+              const newBoard = JSON.parse(JSON.stringify(board));
+              const piece = newBoard[bestMove.from.row][bestMove.from.col];
+              const capturedPiece = newBoard[bestMove.to.row][bestMove.to.col];
+              
+              piece.hasMoved = true;
+              
+              // Check if this is a castling move
+              const isCastling = piece.type === 'king' && Math.abs(bestMove.to.col - bestMove.from.col) > 1;
+              let rookMove = null;
+              
+              if (isCastling) {
+                const backRow = piece.color === 'white' ? 7 : 0;
+                
+                if (bestMove.to.col > bestMove.from.col) {  // Kingside
+                  rookMove = {
+                    from: { row: backRow, col: 7 },
+                    to: { row: backRow, col: 5 }
+                  };
+                } else {  // Queenside
+                  rookMove = {
+                    from: { row: backRow, col: 0 },
+                    to: { row: backRow, col: 3 }
+                  };
+                }
+              }
+              
+              completeMove(
+                newBoard,
+                bestMove.from,
+                bestMove.to,
+                piece,
+                capturedPiece,
+                isCastling,
+                rookMove
+              );
+            }
           }
+        } catch (error) {
+          console.error("Error making AI move:", error);
+          
+          // Fallback to chess AI on any error
+          try {
+            console.log("Error recovery: Using chessAI logic");
+            
+            // Generate all possible AI moves
+            const allMoves = [];
+            for (let row = 0; row < 8; row++) {
+              for (let col = 0; col < 8; col++) {
+                const piece = board[row][col];
+                if (piece && piece.color === currentPlayer) {
+                  const moves = calculatePossibleMoves(row, col, piece, board, enPassantTarget);
+                  const legalMoves = getLegalMoves(row, col, piece, board, moves);
+                  legalMoves.forEach(move => {
+                    allMoves.push({
+                      from: { row, col },
+                      to: move,
+                      piece
+                    });
+                  });
+                }
+              }
+            }
+            
+            if (allMoves.length > 0) {
+              // Use the AI evaluation function to pick the best move
+              const bestMove = getBestMove(board, allMoves);
+              const newBoard = JSON.parse(JSON.stringify(board));
+              const piece = newBoard[bestMove.from.row][bestMove.from.col];
+              const capturedPiece = newBoard[bestMove.to.row][bestMove.to.col];
+              
+              piece.hasMoved = true;
+              completeMove(
+                newBoard,
+                bestMove.from,
+                bestMove.to,
+                piece,
+                capturedPiece,
+                false,
+                null
+              );
+            }
+          } catch (fallbackError) {
+            console.error("Fallback move generation also failed:", fallbackError);
+          }
+        } finally {
+          setIsAiThinking(false);
         }
-      }
+      };
       
-      if (aiMoves.length > 0) {
-        setTimeout(() => {
-          const move = getBestMove(board, aiMoves);
-          const newBoard = JSON.parse(JSON.stringify(board));
-          const piece = newBoard[move.from.row][move.from.col];
-          const capturedPiece = newBoard[move.to.row][move.to.col];
-          
-          // Make the move on the board
-          newBoard[move.to.row][move.to.col] = piece;
-          newBoard[move.from.row][move.from.col] = null;
-          
-          // Update the board
-          setBoard(newBoard);
-          
-          // Notify parent about the move
-          completeMove(
-            newBoard,
-            move.from,
-            move.to,
-            piece,
-            capturedPiece,
-            false // isCastling
-          );
-        }, 500);
-      }
+      makeAIMove();
     }
-  }, [currentPlayer, board, playerColor, calculatePossibleMoves, completeMove]);
+  }, [currentPlayer, board, playerColor, moveHistory, calculatePossibleMoves, completeMove, enPassantTarget, isAiThinking]);
 
   const handleSquareClick = (row, col) => {
     // Only allow clicks for the human player's turn
@@ -213,29 +338,19 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
         // Update the hasMoved property
         piece.hasMoved = true;
         
-        // Handle castling
-        if (move.isCastling) {
-          // Move the rook
-          const rook = newBoard[move.rookMove.from.row][move.rookMove.from.col];
-          rook.hasMoved = true;
-          newBoard[move.rookMove.to.row][move.rookMove.to.col] = rook;
-          newBoard[move.rookMove.from.row][move.rookMove.from.col] = null;
-        }
-        
-        // Update king position
+        // Get captured piece and prepare move
         const capturedPiece = newBoard[row][col];
-        newBoard[selectedSquare.row][selectedSquare.col] = null;
-        newBoard[row][col] = piece;
-        
-        setBoard(newBoard);
-        
-        // Notify parent component about the move
+        const isCastling = move.isCastling || false;
+        const rookMove = move.rookMove || null;
+
+        // Make the move
         handleMove(
           { row: selectedSquare.row, col: selectedSquare.col },
           { row, col },
           piece,
           capturedPiece,
-          move.isCastling
+          isCastling,
+          rookMove
         );
         
         // Reset selection
@@ -257,7 +372,7 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
     }
   };
 
-  const handleMove = (fromSquare, toSquare, piece, capturedPiece = null, isCastling = false) => {
+  const handleMove = (fromSquare, toSquare, piece, capturedPiece = null, isCastling = false, rookMove = null) => {
     const newBoard = JSON.parse(JSON.stringify(board));
     
     // Handle en passant capture
@@ -265,6 +380,11 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
     if (selectedMove && selectedMove.isEnPassant) {
       capturedPiece = board[selectedMove.capturedPawnPosition.row][selectedMove.capturedPawnPosition.col];
       newBoard[selectedMove.capturedPawnPosition.row][selectedMove.capturedPawnPosition.col] = null;
+    }
+
+    // If castling, get the rook move from the selected move
+    if (isCastling && !rookMove && selectedMove && selectedMove.rookMove) {
+      rookMove = selectedMove.rookMove;
     }
 
     // Handle pawn promotion
@@ -277,12 +397,13 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
         fromSquare,
         toSquare,
         capturedPiece,
-        isCastling
+        isCastling,
+        rookMove
       });
       return; // Wait for promotion selection
     }
 
-    completeMove(newBoard, fromSquare, toSquare, piece, capturedPiece, isCastling);
+    completeMove(newBoard, fromSquare, toSquare, piece, capturedPiece, isCastling, rookMove);
   };
 
   const handlePromotion = (pieceType) => {
@@ -305,7 +426,8 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
       promotionSquare.toSquare,
       promotedPiece,
       promotionSquare.capturedPiece,
-      promotionSquare.isCastling
+      promotionSquare.isCastling,
+      promotionSquare.rookMove
     );
     setPromotionSquare(null);
   };
@@ -358,6 +480,9 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
       {renderBoard()}
       {checkStatus[currentPlayer] && (
         <div className="check-indicator">Check!</div>
+      )}
+      {isAiThinking && (
+        <div className="ai-thinking-indicator">AI is thinking...</div>
       )}
       {promotionSquare && (
         <PromotionDialog
