@@ -118,6 +118,20 @@ async function fetchChatResponse(moveHistory) {
  */
 async function getLLMNextMove(moveHistory, board, currentPlayer) {
     try {
+        // Import the check detection functions to check game state
+        const { isInCheckmate, isInStalemate } = await import('../utils/checkDetection');
+        
+        // Check if the game is over (checkmate or stalemate)
+        if (isInCheckmate(currentPlayer, board)) {
+            console.log(`Game over: ${currentPlayer} is in checkmate`);
+            return null;
+        }
+        
+        if (isInStalemate(currentPlayer, board)) {
+            console.log(`Game over: ${currentPlayer} is in stalemate`);
+            return null;
+        }
+        
         // Extract just the notation strings from moveHistory objects
         const notationHistory = moveHistory.map(move => move.notation);
         console.log('Sending move history to LLM:', notationHistory);
