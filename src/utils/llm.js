@@ -133,12 +133,40 @@ async function getLLMNextMove(moveHistory, board, currentPlayer) {
         // Convert the algebraic notation to board coordinates
         const suggestedMove = convertAlgebraicMoveToCoordinates(bestMoveNotation, board, currentPlayer);
         
-        // Validate the move
-        if (suggestedMove && isValidMove(suggestedMove, board, currentPlayer)) {
-            console.log("LLM suggested valid move:", suggestedMove);
-            return suggestedMove;
-        } else {
-            console.warn("LLM suggested invalid move:", bestMoveNotation);
+        // Import the check detection functions dynamically to avoid circular dependencies
+        try {
+            const { wouldBeInCheckAfterMove } = await import('../utils/checkDetection');
+            
+            // Validate the move
+            if (suggestedMove && isValidMove(suggestedMove, board, currentPlayer)) {
+                // Create a deep copy of the board for check testing
+                const boardCopy = JSON.parse(JSON.stringify(board));
+                
+                // Test if the move would leave the king in check
+                const wouldBeInCheck = wouldBeInCheckAfterMove(
+                    boardCopy,
+                    suggestedMove.from,
+                    suggestedMove.to,
+                    currentPlayer
+                );
+                
+                if (!wouldBeInCheck) {
+                    console.log("LLM suggested valid move:", suggestedMove);
+                    return suggestedMove;
+                } else {
+                    console.warn("LLM move would leave king in check:", suggestedMove);
+                    return getFallbackMove(board, currentPlayer);
+                }
+            } else {
+                console.warn("LLM suggested invalid move:", bestMoveNotation);
+                return getFallbackMove(board, currentPlayer);
+            }
+        } catch (checkError) {
+            console.error("Error checking move validity:", checkError);
+            // If there's an error in check detection, try the move anyway
+            if (suggestedMove && isValidMove(suggestedMove, board, currentPlayer)) {
+                return suggestedMove;
+            }
             return getFallbackMove(board, currentPlayer);
         }
     } catch (error) {
@@ -223,120 +251,118 @@ function isValidMove(move, board, currentPlayer) {
 function getFallbackMove(board, currentPlayer) {
     console.log("Using fallback move selection strategy");
     
-    // First, try to find a pawn that can move forward
-    for (let col = 0; col < 8; col++) {
+    try {
+        // Import the required functions synchronously to avoid potential issues
+        const moveCalculator = require('../utils/moveCalculator');
+        const checkDetection = require('../utils/checkDetection');
+        
+        // Generate all possible valid moves that don't leave the king in check
+        const allLegalMoves = [];
+        
         for (let row = 0; row < 8; row++) {
-            const piece = board[row][col];
-            if (piece && piece.color === currentPlayer && piece.type.toLowerCase() === 'pawn') {
-                const direction = currentPlayer === 'white' ? -1 : 1;
-                
-                // Try moving forward 1 square
-                if (row + direction >= 0 && row + direction < 8 && !board[row + direction][col]) {
-                    return {
-                        from: { row, col },
-                        to: { row: row + direction, col }
-                    };
-                }
-                
-                // Try moving forward 2 squares from starting position
-                const isStartingRow = (currentPlayer === 'white' && row === 6) || 
-                                     (currentPlayer === 'black' && row === 1);
-                if (isStartingRow && 
-                    !board[row + direction][col] && 
-                    !board[row + 2 * direction][col]) {
-                    return {
-                        from: { row, col },
-                        to: { row: row + 2 * direction, col }
-                    };
-                }
-                
-                // Try capturing diagonally
-                for (let colOffset of [-1, 1]) {
-                    const targetCol = col + colOffset;
-                    if (targetCol >= 0 && targetCol < 8) {
-                        const targetRow = row + direction;
-                        if (targetRow >= 0 && targetRow < 8 && 
-                            board[targetRow][targetCol] && 
-                            board[targetRow][targetCol].color !== currentPlayer) {
-                            return {
-                                from: { row, col },
-                                to: { row: targetRow, col: targetCol }
-                            };
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    // If no pawn move found, try to move a knight
-    for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-            const piece = board[row][col];
-            if (piece && piece.color === currentPlayer && piece.type.toLowerCase() === 'knight') {
-                // Knight's possible moves (8 positions in L-shape)
-                const knightMoves = [
-                    { rowOffset: -2, colOffset: -1 }, { rowOffset: -2, colOffset: 1 },
-                    { rowOffset: -1, colOffset: -2 }, { rowOffset: -1, colOffset: 2 },
-                    { rowOffset: 1, colOffset: -2 }, { rowOffset: 1, colOffset: 2 },
-                    { rowOffset: 2, colOffset: -1 }, { rowOffset: 2, colOffset: 1 }
-                ];
-                
-                for (const move of knightMoves) {
-                    const targetRow = row + move.rowOffset;
-                    const targetCol = col + move.colOffset;
+            for (let col = 0; col < 8; col++) {
+                const piece = board[row][col];
+                if (piece && piece.color === currentPlayer) {
+                    // Use the same move calculation functions as the main chess logic
+                    let possibleMoves = [];
                     
-                    // Check if the move is within the board
-                    if (targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8) {
-                        // Check if the target square is empty or has an opponent's piece
-                        if (!board[targetRow][targetCol] || 
-                            board[targetRow][targetCol].color !== currentPlayer) {
-                            return {
-                                from: { row, col },
-                                to: { row: targetRow, col: targetCol }
-                            };
-                        }
+                    switch (piece.type.toLowerCase()) {
+                        case 'pawn':
+                            possibleMoves = moveCalculator.calculatePawnMoves(row, col, piece, board);
+                            break;
+                        case 'rook':
+                            possibleMoves = moveCalculator.calculateRookMoves(row, col, piece, board);
+                            break;
+                        case 'knight':
+                            possibleMoves = moveCalculator.calculateKnightMoves(row, col, piece, board);
+                            break;
+                        case 'bishop':
+                            possibleMoves = moveCalculator.calculateBishopMoves(row, col, piece, board);
+                            break;
+                        case 'queen':
+                            possibleMoves = moveCalculator.calculateQueenMoves(row, col, piece, board);
+                            break;
+                        case 'king':
+                            possibleMoves = moveCalculator.calculateKingMoves(row, col, piece, board);
+                            break;
+                        default:
+                            break;
                     }
-                }
-            }
-        }
-    }
-    
-    // As a last resort, find any piece that can move anywhere
-    for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-            const piece = board[row][col];
-            if (piece && piece.color === currentPlayer) {
-                // Try each direction
-                const directions = [
-                    { rowOffset: -1, colOffset: 0 }, { rowOffset: 1, colOffset: 0 },
-                    { rowOffset: 0, colOffset: -1 }, { rowOffset: 0, colOffset: 1 },
-                    { rowOffset: -1, colOffset: -1 }, { rowOffset: -1, colOffset: 1 },
-                    { rowOffset: 1, colOffset: -1 }, { rowOffset: 1, colOffset: 1 }
-                ];
-                
-                for (const direction of directions) {
-                    const targetRow = row + direction.rowOffset;
-                    const targetCol = col + direction.colOffset;
                     
-                    // Check if the move is within the board
-                    if (targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8) {
-                        // Check if the target square is empty or has an opponent's piece
-                        if (!board[targetRow][targetCol] || 
-                            board[targetRow][targetCol].color !== currentPlayer) {
+                    // Filter only legal moves that don't leave king in check
+                    const legalMoves = checkDetection.getLegalMoves(row, col, piece, board, possibleMoves);
+                    
+                    legalMoves.forEach(move => {
+                        allLegalMoves.push({
+                            from: { row, col },
+                            to: move,
+                            piece
+                        });
+                    });
+                }
+            }
+        }
+        
+        if (allLegalMoves.length > 0) {
+            // Choose a random legal move
+            const randomIndex = Math.floor(Math.random() * allLegalMoves.length);
+            return allLegalMoves[randomIndex];
+        }
+        
+        console.error("No legal moves available!");
+        return null;
+    } catch (error) {
+        console.error("Error in fallback move selection:", error);
+        
+        // Last resort fallback - find any piece that can move
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = board[row][col];
+                if (piece && piece.color === currentPlayer) {
+                    // Try simple moves for each piece type
+                    if (piece.type.toLowerCase() === 'pawn') {
+                        const direction = currentPlayer === 'white' ? -1 : 1;
+                        const newRow = row + direction;
+                        if (newRow >= 0 && newRow < 8 && !board[newRow][col]) {
                             return {
                                 from: { row, col },
-                                to: { row: targetRow, col: targetCol }
+                                to: { row: newRow, col }
                             };
+                        }
+                    }
+                    else if (piece.type.toLowerCase() === 'knight') {
+                        // Try knight moves
+                        const knightMoves = [
+                            { rowDiff: -2, colDiff: -1 },
+                            { rowDiff: -2, colDiff: 1 },
+                            { rowDiff: -1, colDiff: -2 },
+                            { rowDiff: -1, colDiff: 2 },
+                            { rowDiff: 1, colDiff: -2 },
+                            { rowDiff: 1, colDiff: 2 },
+                            { rowDiff: 2, colDiff: -1 },
+                            { rowDiff: 2, colDiff: 1 }
+                        ];
+                        
+                        for (const move of knightMoves) {
+                            const newRow = row + move.rowDiff;
+                            const newCol = col + move.colDiff;
+                            
+                            if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+                                if (!board[newRow][newCol] || board[newRow][newCol].color !== currentPlayer) {
+                                    return {
+                                        from: { row, col },
+                                        to: { row: newRow, col: newCol }
+                                    };
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+        
+        return null;
     }
-    
-    console.error("Could not find any valid move!");
-    return null;
 }
 
 /**
