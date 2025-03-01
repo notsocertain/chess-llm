@@ -134,31 +134,50 @@ export const isInCheck = (color, board) => {
 
 // Simulate a move including potential pawn promotion and check if it results in check
 export const wouldBeInCheckAfterMove = (fromRow, fromCol, toRow, toCol, board, color, promotionPiece = null) => {
-  const boardCopy = JSON.parse(JSON.stringify(board));
-  const movingPiece = boardCopy[fromRow][fromCol];
+  // If the first parameter is an object (board) and the second and third are coordinates, adjust parameters
+  let actualBoard = board;
+  let actualFromRow = fromRow;
+  let actualFromCol = fromCol;
+  let actualToRow = toRow;
+  let actualToCol = toCol;
+  let actualColor = color;
+  
+  // Handle case where board is passed as first argument and from/to are passed as objects
+  if (Array.isArray(fromRow) && typeof fromCol === 'object' && typeof toRow === 'object') {
+    actualBoard = fromRow;
+    actualFromRow = fromCol.row;
+    actualFromCol = fromCol.col;
+    actualToRow = toRow.row;
+    actualToCol = toRow.col;
+    actualColor = toCol;
+    promotionPiece = color;
+  }
+  
+  const boardCopy = JSON.parse(JSON.stringify(actualBoard));
+  const movingPiece = boardCopy[actualFromRow][actualFromCol];
   
   // Handle en passant capture
   if (movingPiece.type === PIECE_TYPES.PAWN && 
-      fromCol !== toCol && 
-      !boardCopy[toRow][toCol]) {
-    boardCopy[fromRow][toCol] = null; // Remove captured pawn
+      actualFromCol !== actualToCol && 
+      !boardCopy[actualToRow][actualToCol]) {
+    boardCopy[actualFromRow][actualToCol] = null; // Remove captured pawn
   }
 
-  boardCopy[toRow][toCol] = movingPiece;
-  boardCopy[fromRow][fromCol] = null;
+  boardCopy[actualToRow][actualToCol] = movingPiece;
+  boardCopy[actualFromRow][actualFromCol] = null;
   
   // Handle promotion if applicable
   if (promotionPiece && 
       movingPiece.type === PIECE_TYPES.PAWN && 
-      canPromotePawn(movingPiece, toRow)) {
-    boardCopy[toRow][toCol] = {
+      canPromotePawn(movingPiece, actualToRow)) {
+    boardCopy[actualToRow][actualToCol] = {
       ...movingPiece,
       type: promotionPiece
     };
   }
   
   // Check if this results in check
-  const inCheck = isInCheck(color, boardCopy);
+  const inCheck = isInCheck(actualColor, boardCopy);
   
   return inCheck;
 };

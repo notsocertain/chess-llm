@@ -139,14 +139,13 @@ async function getLLMNextMove(moveHistory, board, currentPlayer) {
             
             // Validate the move
             if (suggestedMove && isValidMove(suggestedMove, board, currentPlayer)) {
-                // Create a deep copy of the board for check testing
-                const boardCopy = JSON.parse(JSON.stringify(board));
-                
                 // Test if the move would leave the king in check
                 const wouldBeInCheck = wouldBeInCheckAfterMove(
-                    boardCopy,
-                    suggestedMove.from,
-                    suggestedMove.to,
+                    suggestedMove.from.row, 
+                    suggestedMove.from.col, 
+                    suggestedMove.to.row, 
+                    suggestedMove.to.col, 
+                    board, 
                     currentPlayer
                 );
                 
