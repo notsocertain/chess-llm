@@ -8,7 +8,7 @@ import '../styles/Game.css';
 const Game = () => {
   const [currentPlayer, setCurrentPlayer] = useState(PIECE_COLORS.WHITE);
   const [moveHistory, setMoveHistory] = useState([]);
-  const [gameOver, setGameOver] = useState(false);
+  const [isGameOver, setIsGameOver] = useState(false);  // Renamed to avoid the warning
   const [gameResult, setGameResult] = useState(null);
   const [winner, setWinner] = useState(null);
   const [playerColor, setPlayerColor] = useState(PIECE_COLORS.WHITE);
@@ -23,7 +23,7 @@ const Game = () => {
   };
 
   const handleGameOver = (result, winningColor) => {
-    setGameOver(true);
+    setIsGameOver(true);  // Use the renamed variable
     setGameResult(result);
     setWinner(winningColor);
   };
@@ -43,7 +43,7 @@ const Game = () => {
   const restartGame = () => {
     setCurrentPlayer(PIECE_COLORS.WHITE);
     setMoveHistory([]);
-    setGameOver(false);
+    setIsGameOver(false);  // Use the renamed variable
     setGameResult(null);
     setWinner(null);
     setShowNewGameModal(true);
@@ -77,7 +77,7 @@ const Game = () => {
       </div>
       
       <GameOverModal 
-        isOpen={gameOver || showNewGameModal}
+        isOpen={isGameOver || showNewGameModal}  // Use the renamed variable
         gameResult={gameResult}
         winner={winner}
         onRestart={restartGame}

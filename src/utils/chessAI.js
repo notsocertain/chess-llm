@@ -1,177 +1,172 @@
+/**
+ * Chess AI utility functions
+ * Simple chess AI that evaluates board positions and determines best moves
+ */
+
+// Piece values for evaluation
 const PIECE_VALUES = {
-    'pawn': 1,
-    'knight': 3,
-    'bishop': 3,
-    'rook': 5,
-    'queen': 9,
-    'king': 100
+  pawn: 100,
+  knight: 320,
+  bishop: 330,
+  rook: 500,
+  queen: 900,
+  king: 20000
 };
 
-// Simple position bonus tables (positive values for controlling center/advanced pawns)
-const POSITION_BONUS = {
-    'pawn': [
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [5, 5, 5, 5, 5, 5, 5, 5], // Promotion row bonus
-        [1, 1, 2, 3, 3, 2, 1, 1],
-        [0.5, 0.5, 1, 2, 2, 1, 0.5, 0.5],
-        [0, 0, 0, 1, 1, 0, 0, 0],
-        [0.5, 0, 0, 0, 0, 0, 0, 0.5],
-        [0.5, 1, 1, -2, -2, 1, 1, 0.5],
-        [0, 0, 0, 0, 0, 0, 0, 0]
-    ],
-    'knight': [
-        [-5, -4, -3, -3, -3, -3, -4, -5],
-        [-4, -2, 0, 0, 0, 0, -2, -4],
-        [-3, 0, 1, 1.5, 1.5, 1, 0, -3],
-        [-3, 0.5, 1.5, 2, 2, 1.5, 0.5, -3],
-        [-3, 0, 1.5, 2, 2, 1.5, 0, -3],
-        [-3, 0.5, 1, 1.5, 1.5, 1, 0.5, -3],
-        [-4, -2, 0, 0.5, 0.5, 0, -2, -4],
-        [-5, -4, -3, -3, -3, -3, -4, -5]
-    ],
-    // Default center-favoring bonus for other pieces
-    'default': [
-        [-2, -1, -1, -0.5, -0.5, -1, -1, -2],
-        [-1, 0, 0, 0, 0, 0, 0, -1],
-        [-1, 0, 0.5, 1, 1, 0.5, 0, -1],
-        [-0.5, 0, 1, 1.5, 1.5, 1, 0, -0.5],
-        [-0.5, 0, 1, 1.5, 1.5, 1, 0, -0.5],
-        [-1, 0, 0.5, 1, 1, 0.5, 0, -1],
-        [-1, 0, 0, 0, 0, 0, 0, -1],
-        [-2, -1, -1, -0.5, -0.5, -1, -1, -2]
-    ]
+// Position bonuses for different pieces (simplified)
+const POSITION_BONUSES = {
+  // Pawns are better in the center and advanced positions
+  pawn: [
+    [0,  0,  0,  0,  0,  0,  0,  0],
+    [50, 50, 50, 50, 50, 50, 50, 50],
+    [10, 10, 20, 30, 30, 20, 10, 10],
+    [5,  5, 10, 25, 25, 10,  5,  5],
+    [0,  0,  0, 20, 20,  0,  0,  0],
+    [5, -5,-10,  0,  0,-10, -5,  5],
+    [5, 10, 10,-20,-20, 10, 10,  5],
+    [0,  0,  0,  0,  0,  0,  0,  0]
+  ],
+  // Knights are better in the center
+  knight: [
+    [-50,-40,-30,-30,-30,-30,-40,-50],
+    [-40,-20,  0,  0,  0,  0,-20,-40],
+    [-30,  0, 10, 15, 15, 10,  0,-30],
+    [-30,  5, 15, 20, 20, 15,  5,-30],
+    [-30,  0, 15, 20, 20, 15,  0,-30],
+    [-30,  5, 10, 15, 15, 10,  5,-30],
+    [-40,-20,  0,  5,  5,  0,-20,-40],
+    [-50,-40,-30,-30,-30,-30,-40,-50]
+  ],
+  // Bishops are better on diagonals
+  bishop: [
+    [-20,-10,-10,-10,-10,-10,-10,-20],
+    [-10,  0,  0,  0,  0,  0,  0,-10],
+    [-10,  0, 10, 10, 10, 10,  0,-10],
+    [-10,  5,  5, 10, 10,  5,  5,-10],
+    [-10,  0, 10, 10, 10, 10,  0,-10],
+    [-10, 10, 10, 10, 10, 10, 10,-10],
+    [-10,  5,  0,  0,  0,  0,  5,-10],
+    [-20,-10,-10,-10,-10,-10,-10,-20]
+  ],
+  // Rooks are better on open files
+  rook: [
+    [0,  0,  0,  0,  0,  0,  0,  0],
+    [5, 10, 10, 10, 10, 10, 10,  5],
+    [-5,  0,  0,  0,  0,  0,  0, -5],
+    [-5,  0,  0,  0,  0,  0,  0, -5],
+    [-5,  0,  0,  0,  0,  0,  0, -5],
+    [-5,  0,  0,  0,  0,  0,  0, -5],
+    [-5,  0,  0,  0,  0,  0,  0, -5],
+    [0,  0,  0,  5,  5,  0,  0,  0]
+  ],
+  // Queens combine mobility values
+  queen: [
+    [-20,-10,-10, -5, -5,-10,-10,-20],
+    [-10,  0,  0,  0,  0,  0,  0,-10],
+    [-10,  0,  5,  5,  5,  5,  0,-10],
+    [-5,   0,  5,  5,  5,  5,  0, -5],
+    [0,    0,  5,  5,  5,  5,  0, -5],
+    [-10,  5,  5,  5,  5,  5,  0,-10],
+    [-10,  0,  5,  0,  0,  0,  0,-10],
+    [-20,-10,-10, -5, -5,-10,-10,-20]
+  ],
+  // Kings are better with castling and protection
+  king: [
+    [-30,-40,-40,-50,-50,-40,-40,-30],
+    [-30,-40,-40,-50,-50,-40,-40,-30],
+    [-30,-40,-40,-50,-50,-40,-40,-30],
+    [-30,-40,-40,-50,-50,-40,-40,-30],
+    [-20,-30,-30,-40,-40,-30,-30,-20],
+    [-10,-20,-20,-20,-20,-20,-20,-10],
+    [20,  20,   0,   0,   0,   0,  20, 20],
+    [20,  30,  10,   0,   0,  10,  30, 20]
+  ]
 };
 
-// Check if a piece is under threat
-const isPieceUnderThreat = (board, row, col, piece) => {
-    const opponentColor = piece.color === 'white' ? 'black' : 'white';
-    
-    // Check for all opponent pieces that could capture this piece
-    for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-            const attackingPiece = board[r][c];
-            if (attackingPiece && attackingPiece.color === opponentColor) {
-                // Simplified threat detection (in a real implementation, you'd use your move calculation functions)
-                if (canCapture(board, r, c, row, col)) {
-                    return true;
-                }
-            }
-        }
+/**
+ * Evaluates the current board position
+ * Higher score favors white, lower score favors black
+ */
+const evaluateBoard = (board) => {
+  let score = 0;
+  
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const piece = board[row][col];
+      if (!piece) continue;
+      
+      // Base piece value
+      const pieceValue = PIECE_VALUES[piece.type.toLowerCase()] || 0;
+      
+      // Add position bonus
+      const positionBonus = POSITION_BONUSES[piece.type.toLowerCase()] ?
+        POSITION_BONUSES[piece.type.toLowerCase()][piece.color === 'white' ? row : 7 - row][col] : 0;
+      
+      // Add or subtract based on piece color
+      if (piece.color === 'white') {
+        score += pieceValue + positionBonus;
+      } else {
+        score -= pieceValue + positionBonus;
+      }
     }
-    return false;
+  }
+  
+  return score;
 };
 
-// Simplified capture check
-const canCapture = (board, fromRow, fromCol, toRow, toCol) => {
-    // This is a placeholder - in your real code, you should use your actual move calculation logic
-    // to determine if a piece can capture another
-    
-    // For now, just a simple approximation based on piece types
-    const piece = board[fromRow][fromCol];
-    if (!piece) return false;
-    
-    const rowDiff = Math.abs(toRow - fromRow);
-    const colDiff = Math.abs(toCol - fromCol);
-    
-    switch (piece.type.toLowerCase()) {
-        case 'pawn':
-            // Pawns capture diagonally
-            return rowDiff === 1 && colDiff === 1;
-        case 'knight':
-            // Knights move in L-shape
-            return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2);
-        case 'bishop':
-            // Bishops move diagonally
-            return rowDiff === colDiff;
-        case 'rook':
-            // Rooks move in straight lines
-            return rowDiff === 0 || colDiff === 0;
-        case 'queen':
-            // Queens move like rooks and bishops
-            return rowDiff === 0 || colDiff === 0 || rowDiff === colDiff;
-        case 'king':
-            // Kings move one square in any direction
-            return rowDiff <= 1 && colDiff <= 1;
-        default:
-            return false;
-    }
-};
-
-// Get position bonus for a piece
-const getPositionBonus = (piece, row, col) => {
-    const pieceType = piece.type.toLowerCase();
-    // Flip the position for black pieces
-    const adjustedRow = piece.color === 'white' ? row : 7 - row;
-    const adjustedCol = piece.color === 'white' ? col : 7 - col;
-    
-    if (POSITION_BONUS[pieceType]) {
-        return POSITION_BONUS[pieceType][adjustedRow][adjustedCol];
-    }
-    
-    // Use default position bonus for other pieces
-    return POSITION_BONUS['default'][adjustedRow][adjustedCol];
-};
-
-export const getRandomMove = (possibleMoves) => {
-    const index = Math.floor(Math.random() * possibleMoves.length);
-    return possibleMoves[index];
-};
-
-export const getBestMove = (board, possibleMoves) => {
-    let bestMove = null;
-    let bestScore = -Infinity;
-
-    possibleMoves.forEach(move => {
-        const score = evaluateMove(board, move);
-        if (score > bestScore) {
-            bestScore = score;
-            bestMove = move;
-        }
-    });
-
-    // If no good moves found, select random move
-    return bestMove || getRandomMove(possibleMoves);
-};
-
+/**
+ * Simulates a move on the board and evaluates the resulting position
+ */
 const evaluateMove = (board, move) => {
-    let score = 0;
-    const { from, to, piece } = move;
-
-    // 1. Capture value - highest priority
-    if (board[to.row][to.col]) {
-        const capturedPiece = board[to.row][to.col];
-        score += PIECE_VALUES[capturedPiece.type.toLowerCase()] * 10;
-    }
-
-    // 2. Position improvement
-    const fromBonus = getPositionBonus(piece, from.row, from.col);
-    const toBonus = getPositionBonus(piece, to.row, to.col);
-    score += (toBonus - fromBonus) * 3;
-    
-    // 3. Center control bonus
-    const centerDistance = Math.abs(3.5 - to.row) + Math.abs(3.5 - to.col);
-    score += (7 - centerDistance) * 0.5;
-    
-    // 4. Check for piece safety after move
-    // Create a temporary board to simulate the move
-    const tempBoard = JSON.parse(JSON.stringify(board));
-    tempBoard[to.row][to.col] = piece;
-    tempBoard[from.row][from.col] = null;
-    
-    if (isPieceUnderThreat(tempBoard, to.row, to.col, piece)) {
-        // Penalize moves that put pieces in danger
-        score -= PIECE_VALUES[piece.type.toLowerCase()] * 2;
-    }
-    
-    // 5. Pawn promotion proximity
-    if (piece.type.toLowerCase() === 'pawn') {
-        const promotionRow = piece.color === 'white' ? 0 : 7;
-        const distanceToPromotion = Math.abs(promotionRow - to.row);
-        score += (7 - distanceToPromotion) * 0.3;
-    }
-    
-    // 6. Add small random factor for variety
-    score += Math.random() * 0.5;
-
-    return score;
+  // Create a deep copy of the board
+  const newBoard = JSON.parse(JSON.stringify(board));
+  
+  // Get the piece and make the move
+  const piece = newBoard[move.from.row][move.from.col];
+  const capturedPiece = newBoard[move.to.row][move.to.col];
+  
+  // Make the move
+  newBoard[move.to.row][move.to.col] = piece;
+  newBoard[move.from.row][move.from.col] = null;
+  
+  // Evaluate the resulting position
+  const score = evaluateBoard(newBoard);
+  
+  return {
+    move,
+    score,
+    capturesValue: capturedPiece ? PIECE_VALUES[capturedPiece.type.toLowerCase()] || 0 : 0
+  };
 };
+
+/**
+ * Gets the best move from a list of possible moves
+ */
+export const getBestMove = (board, possibleMoves) => {
+  if (!possibleMoves.length) return null;
+  
+  // Evaluate each move
+  const evaluatedMoves = possibleMoves.map(move => evaluateMove(board, move));
+  
+  // Sort moves based on evaluation score (ascending for black, descending for white)
+  evaluatedMoves.sort((a, b) => {
+    const currentColor = possibleMoves[0].piece.color;
+    return currentColor === 'white' ? b.score - a.score : a.score - b.score;
+  });
+  
+  // Add some randomness for variety (choose from top 3 moves if available)
+  const topMoveCount = Math.min(3, evaluatedMoves.length);
+  const randomIndex = Math.floor(Math.random() * topMoveCount);
+  
+  return evaluatedMoves[randomIndex].move;
+};
+
+// Fix: Create an object before exporting as default
+const chessAI = {
+  getBestMove,
+  evaluateBoard,
+  // Add any other exported functions here
+};
+
+export {  evaluateBoard };
+export default chessAI;
