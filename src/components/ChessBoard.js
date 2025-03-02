@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Square from './Square';
+import TrashTalk from './TrashTalk'; // Import the new component
 import { PIECE_COLORS } from '../constants/pieceData';
 import { initializeBoard } from '../utils/boardUtils';
 import { 
@@ -23,6 +24,8 @@ import { getBestMove } from '../utils/chessAI';
 import { 
   boardArrayToFen
 } from '../utils/chessUtils';
+// Import the random trash talk generator
+import { getRandomTrashTalk } from '../utils/trashTalkData';
 import '../styles/ChessBoard.css';
 import PromotionDialog from './PromotionDialog';
 
@@ -41,6 +44,8 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
   const [enPassantTarget, setEnPassantTarget] = useState(null);
   const [promotionSquare, setPromotionSquare] = useState(null);
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const [aiTrashTalk, setAiTrashTalk] = useState('');
+  const [showTrashTalk, setShowTrashTalk] = useState(false);
 
   // Track castling rights
   const [castlingRights, setCastlingRights] = useState({
@@ -265,6 +270,7 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
     if (isComputerTurn && !isAiThinking) {
       const makeAIMove = async () => {
         setIsAiThinking(true);
+        setShowTrashTalk(false); // Reset trash talk visibility
         console.log("===========================================");
         console.log("STARTING AI MOVE PROCESS");
         console.log("===========================================");
@@ -279,6 +285,7 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
           
           // Try to get move from Stockfish+LLM pipeline
           let move = null;
+          let usingLLM = true;
           
           try {
             console.log("Attempting to get move from Stockfish+LLM pipeline");
@@ -286,12 +293,24 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
             console.log("===========================================");
             console.log("RECEIVED MOVE FROM LLM:", move);
             console.log("===========================================");
+            
+            // If we have trash talk from the AI, display it
+            if (move && move.trashTalk) {
+              setAiTrashTalk(move.trashTalk);
+              setShowTrashTalk(true);
+            }
           } catch (llmError) {
             console.error("Error in LLM/Stockfish pipeline:", llmError);
             console.log("===========================================");
             console.log("LLM PIPELINE FAILED, WILL USE CHESS AI FALLBACK");
             console.log("===========================================");
             move = null;
+            usingLLM = false;
+            
+            // Set a random trash talk when using the fallback AI
+            const randomTrashTalk = getRandomTrashTalk();
+            setAiTrashTalk(randomTrashTalk);
+            setShowTrashTalk(true);
           }
           
           // If we got a valid move from the LLM pipeline, use it
@@ -360,6 +379,13 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
           console.log("===========================================");
           console.log("USING CHESSAI FALLBACK LOGIC FOR MOVE GENERATION");
           console.log("===========================================");
+          
+          // If we haven't already set a trash talk message from LLM failure, set one now
+          if (usingLLM) {
+            const randomTrashTalk = getRandomTrashTalk();
+            setAiTrashTalk(randomTrashTalk);
+            setShowTrashTalk(true);
+          }
           
           // Generate all possible AI moves using standard chess logic
           const allMoves = [];
@@ -439,6 +465,11 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
             console.log("===========================================");
             console.log("EMERGENCY FALLBACK: TRYING ANY VALID MOVE");
             console.log("===========================================");
+            
+            // Always show trash talk in emergency fallback
+            const fallbackTrashTalk = getRandomTrashTalk();
+            setAiTrashTalk(fallbackTrashTalk);
+            setShowTrashTalk(true);
             
             const allMoves = [];
             for (let row = 0; row < 8; row++) {
@@ -690,6 +721,12 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
           onClose={() => setPromotionSquare(null)}
         />
       )}
+      
+      {/* Add the TrashTalk component */}
+      <TrashTalk 
+        message={aiTrashTalk} 
+        isVisible={showTrashTalk && !isAiThinking} 
+      />
       
       {/* Add FEN display for debugging */}
       {/* <div className="fen-display" style={{position: 'absolute', bottom: '-30px', left: 0, fontSize: '10px', width: '100%', textAlign: 'center'}}>

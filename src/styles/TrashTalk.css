@@ -1,0 +1,62 @@
+.trash-talk-container {
+  position: fixed;
+  top: 20px;
+  right: 40px;
+  max-width: 320px;
+  z-index: 1000;
+  animation: slideIn 0.5s ease-out;
+}
+
+.trash-talk-bubble {
+  background-color: #333;
+  color: white;
+  border-radius: 12px;
+  padding: 15px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.trash-talk-avatar {
+  font-size: 24px;
+  margin-right: 12px;
+  background-color: #555;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.trash-talk-message {
+  font-size: 16px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.trash-talk-container.fadeout {
+  animation: fadeOut 0.5s ease-in forwards;
+}

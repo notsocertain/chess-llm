@@ -1,5 +1,9 @@
 const prompts = `
-*"You are an expert in chess with extensive experience in analyzing positions and selecting the best moves. Your task is to analyze a given chess position provided as a FEN string and Stockfish evaluation, then return only the best next move in standard algebraic notation.
+"
+You are an expert in chess with extensive experience in analyzing positions and selecting the best moves. Your task is to analyze a given chess position provided as a FEN string and Stockfish evaluation. You will return a JSON object with two key elements:
+
+Best Move: The optimal next move in standard algebraic notation.
+Trash Talk: A confident and humorous statement about how the move will dominate the opponent.
 
 Understanding Chess Notation
 Basic Piece Symbols:
@@ -24,6 +28,18 @@ Disambiguation: If two pieces of the same type can move to the same square, spec
 
 Strictly Follow Standard Algebraic Notation: Your output must comply exactly with standard chess notation.
 
+
+Response Format:
+Return a JSON object containing:
+
+{
+  "best_move": "{best move in standard algebraic notation}",
+  "trash_talk": "{confident and humorous statement about crushing the opponent}"
+}
+
+No extra text, only the JSON output.
+The trash talk should be witty, competitive, and fun but not offensive.
+
 Input Format:
 You'll receive a Stockfish API response with the following structure:
 {
@@ -36,9 +52,6 @@ You'll receive a Stockfish API response with the following structure:
   'fen': 'FEN string of the position'
 }
 
-Response Format:
-Return a single best move in algebraic notation with no extra text.
-Do not include explanations, evaluations, or alternative moves—strictly output the best move.
 
 Examples:
 Example Stockfish Response:
@@ -53,27 +66,31 @@ Example Stockfish Response:
 }
 
 Your Response:
-e4
-
-Example Stockfish Response:
 {
-  'turn': 'b',
-  'from': 'g8',
-  'to': 'f6',
-  'text': 'Move g8 → f6 [+0.20]. Depth 12.',
-  'eval': 0.2,
-  'move': 'g8f6',
-  'fen': 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'
+  "best_move": "e4",
+  "trash_talk": "Bow down, my pawn marches forth like a king in disguise. Your defense? Nonexistent!"
 }
 
-Your Response:
-Nf6
 
 Now, analyze the following Stockfish response and provide the best move in standard algebraic notation."
 
 
-Output format:
-{Next best move in standard algebraic notation}
+Strictly Enforced Output Format:
+You must return a valid JSON object with the correct syntax and no additional text or explanation. The JSON must follow this structure exactly:
+
+json
+Copy
+Edit
+{
+  "best_move": "{best move in standard algebraic notation}",
+  "trash_talk": "{confident and humorous statement about crushing the opponent}"
+}
+The best move must be in correct standard algebraic notation.
+The trash talk must be witty, competitive, and fun but not offensive.
+No extra text, comments, or formatting issues—strictly return valid JSON.
+
+DONT FORGET COMMA AFTER A KEY IN JSON
+AND CURLY BRACES ARE USED TO DEFINE OBJECTS IN JSON
 `;
 
 // Define API Key securely
@@ -82,7 +99,7 @@ const API_KEY = "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"; // R
 /**
  * Fetches the LLM response based on a Stockfish analysis
  * @param {Object} stockfishResponse - The response from Stockfish API
- * @returns {Promise<string|null>} - The algebraic notation for the best move
+ * @returns {Promise<string|null>} - The algebraic notation for the best movek
  */
 async function fetchLLMResponse(stockfishResponse) {
     const API_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -128,17 +145,24 @@ async function fetchLLMResponse(stockfishResponse) {
         const data = await response.json();
         
         // Extract the move from the API response
-        const bestMove = data.choices?.[0]?.message?.content?.trim();
+        const responseContent = data.choices?.[0]?.message?.content?.trim();
+        console.log("responseContent: ", responseContent);
+        const parsedResponse = JSON.parse(responseContent);
+        const bestMove_parsed = parsedResponse.best_move;
+        const trash_talk = parsedResponse.trash_talk;
+
+        console.log("bestMove_parsed: ", bestMove_parsed);
+        console.log("trash_talk: ", trash_talk);
         
         console.log('-------------------------------------------');
-        console.log('STEP 4: LLM suggested move:', bestMove);
+        console.log('STEP 4: LLM suggested move:', bestMove_parsed);
         console.log('-------------------------------------------');
 
-        if (!bestMove) {
+        if (!bestMove_parsed) {
             throw new Error("Empty response from LLM");
         }
 
-        return bestMove;
+        return { bestMove: bestMove_parsed, trashTalk: trash_talk };
     } catch (error) {
         console.error("Error fetching LLM response:", error);
         throw error; // Re-throw to allow proper fallback
@@ -255,32 +279,33 @@ async function getNextMove(fenOrBoard, currentPlayer) {
         }
         
         // Then send Stockfish analysis to the LLM
-        let algebraicMove;
+        let result;
         try {
-            algebraicMove = await fetchLLMResponse(stockfishResponse);
+            result = await fetchLLMResponse(stockfishResponse);
         } catch (llmError) {
             console.error("LLM error:", llmError);
             throw new Error("LLM error: " + llmError.message);
         }
         
         // Validate the algebraic move
-        if (!algebraicMove || algebraicMove.includes("Error")) {
-            throw new Error("Invalid move from LLM: " + algebraicMove);
+        if (!result || !result.bestMove || result.bestMove.includes("Error")) {
+            throw new Error("Invalid move from LLM: " + result?.bestMove);
         }
         
-        const result = {
+        const finalResult = {
+            notation: result.bestMove,
             from: stockfishResponse.from,
             to: stockfishResponse.to,
-            notation: algebraicMove,
             fen: stockfishResponse.fen,
-            evaluation: stockfishResponse.eval
+            evaluation: stockfishResponse.eval,
+            trashTalk: result.trashTalk
         };
         
         console.log('-------------------------------------------');
-        console.log('STEP 5: Final move result:', result);
+        console.log('STEP 5: Final move result:', finalResult);
         console.log('-------------------------------------------');
         
-        return result;
+        return finalResult;
     } catch (error) {
         console.error("Error in getNextMove:", error);
         throw error; // Re-throw the error to ensure the fallback is used
