@@ -1,15 +1,71 @@
 .chess-board {
   display: grid;
-  grid-template-columns: repeat(8, 60px);
-  grid-template-rows: repeat(8, 60px);
-  width: 480px;
-  height: 480px;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: 100%;
+  max-width: 480px;
+  height: auto;
+  aspect-ratio: 1 / 1;
   border: 5px solid #654321;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-  position: left;
+  margin: 0 auto;
 }
 
 /* Add any additional styles for the chess board here */
+
+.chess-square {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+}
+
+.chess-square.light {
+  background-color: #f0d9b5;
+}
+
+.chess-square.dark {
+  background-color: #b58863;
+}
+
+.chess-square.selected {
+  background-color: rgba(106, 190, 249, 0.5) !important;
+}
+
+.chess-square.valid-move::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: rgba(106, 190, 249, 0.5);
+  position: absolute;
+}
+
+.piece {
+  width: 80%;
+  height: 80%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 40px;
+  z-index: 2;
+  user-select: none;
+}
+
+.piece-icon {
+  font-size: 2.5rem;
+  cursor: grab;
+}
+
+.piece-icon.white {
+  color: #fff;
+  text-shadow: 0 0 2px #000;
+}
+
+.piece-icon.black {
+  color: #000;
+}
 
 .promotion-dialog {
   position: fixed;
@@ -56,4 +112,20 @@
   border-radius: 5px;
   font-weight: bold;
   z-index: 100;
+}
+
+/* Responsive styles */
+@media (max-width: 600px) {
+  .chess-board {
+    max-width: 100%;
+    border-width: 3px;
+  }
+
+  .piece {
+    font-size: 30px;
+  }
+
+  .piece-icon {
+    font-size: 2rem;
+  }
 }
