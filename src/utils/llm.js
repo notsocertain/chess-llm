@@ -38,7 +38,7 @@ Return a JSON object containing:
 }
 
 No extra text, only the JSON output.
-The trash talk should be witty, competitive, and fun but not offensive.
+The trash talk should be witty, competitive, and fun.
 
 Input Format:
 You'll receive a Stockfish API response with the following structure:
@@ -91,6 +91,37 @@ No extra text, comments, or formatting issues—strictly return valid JSON.
 
 DONT FORGET COMMA AFTER A KEY IN JSON
 AND CURLY BRACES ARE USED TO DEFINE OBJECTS IN JSON
+DOUBLE CHECK THE RESPONSE JSON FORMAT
+`;
+
+const fix_prompt = `
+You are an expert in JSON syntax correction. Your task is to analyze a given JSON-like input that may have syntax errors, such as:
+
+Missing or extra brackets {}
+Missing commas between key-value pairs
+Unquoted string keys or values
+Any other common JSON syntax issues
+Your goal is to:
+
+Detect errors in the input.
+Fix the syntax to produce valid JSON while preserving the original structure and meaning.
+Strictly return only the corrected JSON—no explanations, additional text, or formatting outside valid JSON.
+Example Input:
+{
+  "best_move": "Nc6",
+  "trash_talk": "Ah, you think a simple pawn push is enough? Ha! I'll respond with a knight attack and turn the tables on your feeble defense. Bring it on!"
+
+
+Example Output:
+{
+  "best_move": "Nc6",
+  "trash_talk": "Ah, you think a simple pawn push is enough? Ha! I'll respond with a knight attack and turn the tables on your feeble defense. Bring it on!"
+}
+Rules:
+
+If the input is already valid JSON, return it unchanged.
+If the input has errors, fix them and return only the corrected JSON.
+Do not include explanations, additional text, or formatting outside valid JSON.
 `;
 
 // Define API Key securely
@@ -147,7 +178,36 @@ async function fetchLLMResponse(stockfishResponse) {
         // Extract the move from the API response
         const responseContent = data.choices?.[0]?.message?.content?.trim();
         console.log("responseContent: ", responseContent);
-        const parsedResponse = JSON.parse(responseContent);
+
+        const requestBody_fix = {
+            model: "llama3-8b-8192",
+            messages: [
+                { role: "system", content: fix_prompt },
+                { role: "user", content: responseContent }
+            ],
+        };
+        const response_fix = await fetch(API_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${API_KEY}`
+            },
+            body: JSON.stringify(requestBody_fix)
+        });
+
+        if (!response_fix.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! Status: ${response.status}, Details: ${errorText}`);
+        }
+
+        const data_final = await response_fix.json();
+        const responseContent_fix = data_final.choices?.[0]?.message?.content?.trim();
+        console.log("responseContent after FIX: ", responseContent_fix);
+
+        
+
+
+        const parsedResponse = JSON.parse(responseContent_fix);
         const bestMove_parsed = parsedResponse.best_move;
         const trash_talk = parsedResponse.trash_talk;
 
