@@ -1,5 +1,5 @@
 const prompts = `
-*"You are an expert in chess with extensive experience in analyzing positions and selecting the best moves. Your task is to analyze a given sequence of chess moves and return only the best next move in standard algebraic notation.
+*"You are an expert in chess with extensive experience in analyzing positions and selecting the best moves. Your task is to analyze a given chess position provided as a FEN string and Stockfish evaluation, then return only the best next move in standard algebraic notation.
 
 Understanding Chess Notation
 Basic Piece Symbols:
@@ -9,44 +9,67 @@ R = Rook
 B = Bishop
 N = Knight ("N" is used because "K" is reserved for the King)
 (No symbol) = Pawn moves are identified by their destination square (e.g., e4 means a pawn moves to e4).
+
 Move Symbols:
 x = Capture (e.g., Bxe5 means Bishop captures on e5)
 + = Check (e.g., Qd5+ means Queen moves to d5 and gives check)
 # = Checkmate (e.g., Qh7# means Queen moves to h7 and delivers checkmate)
 O-O = Kingside castling (short castling)
 O-O-O = Queenside castling (long castling)
+
 Special Cases:
 Pawn Move: Only the destination square is noted (e.g., e4 means a pawn moves to e4)
 Pawn Capture: The file (column) the pawn came from is included (e.g., exd5 means a pawn from the 'e' file captures on d5)
 Disambiguation: If two pieces of the same type can move to the same square, specify the file or rank (e.g., Nbd2 means the Knight from the 'b' file moves to d2)
-How You Will Determine the Best Move
-Identify Whose Turn It Is: Analyze the move sequence to determine whether it's White’s or Black’s turn.
-Validate the Move Sequence: Ensure the given move history follows legal chess rules before proceeding.
-Calculate the Best Move: Using your expertise, determine the optimal move based on position, material, and strategy.
+
 Strictly Follow Standard Algebraic Notation: Your output must comply exactly with standard chess notation.
+
+Input Format:
+You'll receive a Stockfish API response with the following structure:
+{
+  'turn': 'w' or 'b' (whose turn it is),
+  'from': 'square' (e.g., 'e2'),
+  'to': 'square' (e.g., 'e4'),
+  'text': 'Move description and evaluation',
+  'eval': numerical evaluation,
+  'move': 'move in UCI format',
+  'fen': 'FEN string of the position'
+}
+
 Response Format:
 Return a single best move in algebraic notation with no extra text.
 Do not include explanations, evaluations, or alternative moves—strictly output the best move.
+
 Examples:
-Example 1 (Black's Move):
-Input:
-Move history: e4 d5 exd5 (It is now Black’s turn to move.)
+Example Stockfish Response:
+{
+  'turn': 'w',
+  'from': 'e2',
+  'to': 'e4',
+  'text': 'Move e2 → e4 [+0.32]. Depth 12.',
+  'eval': 0.32,
+  'move': 'e2e4',
+  'fen': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+}
 
-Output:
-Nf6 (Knight moves to f6—this is the best move based on opening principles.)
+Your Response:
+e4
 
-Example 2 (White's Move):
-Input:
-Move history: e4 e5 Nf3 Nc6 (It is now White’s turn to move.)
+Example Stockfish Response:
+{
+  'turn': 'b',
+  'from': 'g8',
+  'to': 'f6',
+  'text': 'Move g8 → f6 [+0.20]. Depth 12.',
+  'eval': 0.2,
+  'move': 'g8f6',
+  'fen': 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'
+}
 
-Example 3 (White's Move):
-Input:
-If move history is empty you are first to move.
+Your Response:
+Nf6
 
-Output:
-Bb5 (Bishop moves to b5—this is the Ruy-Lopez opening, a strong developing move.)
-
-Now, analyze the following move history and provide the best next move."
+Now, analyze the following Stockfish response and provide the best move in standard algebraic notation."
 
 
 Output format:
@@ -54,29 +77,36 @@ Output format:
 `;
 
 // Define API Key securely
-const API_KEY = "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"; // Replace with your actual API key
+const API_KEY = "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"; // Replace with your actual API key
 
-async function fetchChatResponse(moveHistory) {
+/**
+ * Fetches the LLM response based on a Stockfish analysis
+ * @param {Object} stockfishResponse - The response from Stockfish API
+ * @returns {Promise<string|null>} - The algebraic notation for the best move
+ */
+async function fetchLLMResponse(stockfishResponse) {
     const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
     if (!API_KEY) {
         console.error("Error: API_KEY is missing.");
-        return null;
-    }
-
-    // Format move history if it's an array
-    let formattedMoveHistory = moveHistory;
-    if (Array.isArray(moveHistory)) {
-        formattedMoveHistory = moveHistory.join(' ');
+        throw new Error("API_KEY is missing");
     }
     
-    console.log('Move history sent to LLM:', formattedMoveHistory);
+    console.log('-------------------------------------------');
+    console.log('STEP 3: Sending Stockfish response to LLM:', stockfishResponse);
+    console.log('-------------------------------------------');
+    
+    // Ensure we have a valid stockfishResponse
+    if (!stockfishResponse || !stockfishResponse.fen) {
+        console.error("Invalid stockfish response:", stockfishResponse);
+        throw new Error("Invalid stockfish response");
+    }
     
     const requestBody = {
-        model: "llama-3.3-70b-versatile",
+        model: "llama3-8b-8192",
         messages: [
             { role: "system", content: prompts },
-            { role: "user", content: formattedMoveHistory }
+            { role: "user", content: JSON.stringify(stockfishResponse) }
         ],
     };
 
@@ -99,622 +129,164 @@ async function fetchChatResponse(moveHistory) {
         
         // Extract the move from the API response
         const bestMove = data.choices?.[0]?.message?.content?.trim();
-        console.log("LLM suggested move:", bestMove);
-        console.log('--------------------');
+        
+        console.log('-------------------------------------------');
+        console.log('STEP 4: LLM suggested move:', bestMove);
+        console.log('-------------------------------------------');
 
-        return bestMove || "Error: No move found.";
+        if (!bestMove) {
+            throw new Error("Empty response from LLM");
+        }
+
+        return bestMove;
     } catch (error) {
-        console.error("Error fetching next move response:", error);
-        return null;
+        console.error("Error fetching LLM response:", error);
+        throw error; // Re-throw to allow proper fallback
     }
 }
 
 /**
- * Gets the next best move from the LLM based on the current game state
- * @param {Array} moveHistory - The history of moves in algebraic notation
- * @param {Array} board - The current board state
- * @param {String} currentPlayer - The current player ('white' or 'black')
- * @returns {Object|null} - The from and to positions for the best move, or null if no move could be determined
+ * Gets the next best move by processing Stockfish response through the LLM
+ * @param {string|Object|Array} fenOrBoard - The current FEN notation or board state
+ * @param {string} [currentPlayer] - The current player (only needed if board state is provided)
+ * @returns {Promise<Object|null>} - The best move information
  */
-async function getLLMNextMove(moveHistory, board, currentPlayer) {
+async function getNextMove(fenOrBoard, currentPlayer) {
     try {
-        // Import the check detection functions to check game state
-        const { isInCheckmate, isInStalemate } = await import('../utils/checkDetection');
+        let fen;
         
-        // Check if the game is over (checkmate or stalemate)
-        if (isInCheckmate(currentPlayer, board)) {
-            console.log(`Game over: ${currentPlayer} is in checkmate`);
-            return null;
-        }
-        
-        if (isInStalemate(currentPlayer, board)) {
-            console.log(`Game over: ${currentPlayer} is in stalemate`);
-            return null;
-        }
-        
-        // Extract just the notation strings from moveHistory objects
-        const notationHistory = moveHistory.map(move => move.notation);
-        console.log('Sending move history to LLM:', notationHistory);
-        
-        // Get the best move in algebraic notation from the LLM
-        const bestMoveNotation = await fetchChatResponse(notationHistory);
-        
-        if (!bestMoveNotation || bestMoveNotation.includes("Error")) {
-            console.error("Failed to get valid move from LLM:", bestMoveNotation);
-            return getFallbackMove(board, currentPlayer);
-        }
-        
-        // Convert the algebraic notation to board coordinates
-        const suggestedMove = convertAlgebraicMoveToCoordinates(bestMoveNotation, board, currentPlayer);
-        
-        // Import the check detection functions dynamically to avoid circular dependencies
-        try {
-            const { wouldBeInCheckAfterMove } = await import('../utils/checkDetection');
+        // Handle different input types
+        if (typeof fenOrBoard === 'string') {
+            // It's already a FEN string - validate it
+            if (!fenOrBoard.includes(' ')) {
+                console.error("Invalid FEN string (no spaces):", fenOrBoard);
+                throw new Error("Invalid FEN format");
+            }
             
-            // Validate the move
-            if (suggestedMove && isValidMove(suggestedMove, board, currentPlayer)) {
-                // Test if the move would leave the king in check
-                const wouldBeInCheck = wouldBeInCheckAfterMove(
-                    suggestedMove.from.row, 
-                    suggestedMove.from.col, 
-                    suggestedMove.to.row, 
-                    suggestedMove.to.col, 
-                    board, 
-                    currentPlayer
-                );
+            // Count components of the FEN string
+            const parts = fenOrBoard.split(' ');
+            if (parts.length !== 6) {
+                console.error("Invalid FEN string (should have 6 parts):", fenOrBoard);
+                console.error("Found parts:", parts);
+                throw new Error("Invalid FEN format: should have 6 parts");
+            }
+            
+            fen = fenOrBoard;
+            console.log('-------------------------------------------');
+            console.log('STEP 1: Using provided FEN notation:', fen);
+            console.log('-------------------------------------------');
+        }
+        else {
+            // It's a board object, determine which format it is
+            try {
+                const { boardToFen, boardArrayToFen } = await import('./chessUtils');
                 
-                if (!wouldBeInCheck) {
-                    console.log("LLM suggested valid move:", suggestedMove);
-                    return suggestedMove;
+                // Check if it's a 2D array board
+                if (Array.isArray(fenOrBoard) && fenOrBoard.length === 8) {
+                    fen = boardArrayToFen(fenOrBoard, currentPlayer === 'white' ? 'w' : 'b');
+                    console.log('-------------------------------------------');
+                    console.log('STEP 1: Generated FEN from array board:', fen);
+                    console.log('-------------------------------------------');
+                }
+                // Check if it's a dictionary-style board with squares as keys
+                else if (typeof fenOrBoard === 'object' && !Array.isArray(fenOrBoard)) {
+                    // Check if it has standard square notation keys (a1, b2, etc.)
+                    const hasSquareKeys = Object.keys(fenOrBoard).some(key => 
+                        /^[a-h][1-8]$/.test(key) && 
+                        fenOrBoard[key] && 
+                        typeof fenOrBoard[key] === 'object'
+                    );
+                    
+                    if (hasSquareKeys) {
+                        fen = boardToFen(fenOrBoard, currentPlayer === 'white' ? 'w' : 'b');
+                        console.log('-------------------------------------------');
+                        console.log('STEP 1: Generated FEN from dictionary board:', fen);
+                        console.log('-------------------------------------------');
+                    }
+                    // If it has a fen property, use that directly
+                    else if (fenOrBoard.fen) {
+                        fen = fenOrBoard.fen;
+                        console.log('-------------------------------------------');
+                        console.log('STEP 1: Using existing FEN from board object:', fen);
+                        console.log('-------------------------------------------');
+                    }
+                    else {
+                        throw new Error("Unrecognized board format");
+                    }
+                }
+                else {
+                    throw new Error("Unrecognized board format");
+                }
+            } catch (err) {
+                console.error("Error converting board to FEN:", err);
+                
+                // Last resort: check if the board object has a fen property
+                if (fenOrBoard && typeof fenOrBoard === 'object' && fenOrBoard.fen) {
+                    fen = fenOrBoard.fen;
+                    console.log('-------------------------------------------');
+                    console.log('STEP 1: Using FEN from fallback mechanism:', fen);
+                    console.log('-------------------------------------------');
                 } else {
-                    console.warn("LLM move would leave king in check:", suggestedMove);
-                    return getFallbackMove(board, currentPlayer);
-                }
-            } else {
-                console.warn("LLM suggested invalid move:", bestMoveNotation);
-                return getFallbackMove(board, currentPlayer);
-            }
-        } catch (checkError) {
-            console.error("Error checking move validity:", checkError);
-            // If there's an error in check detection, try the move anyway
-            if (suggestedMove && isValidMove(suggestedMove, board, currentPlayer)) {
-                return suggestedMove;
-            }
-            return getFallbackMove(board, currentPlayer);
-        }
-    } catch (error) {
-        console.error("Error in getLLMNextMove:", error);
-        return getFallbackMove(board, currentPlayer);
-    }
-}
-
-/**
- * Checks if a move is valid by checking if the piece exists and can move to the destination
- * @param {Object} move - The move to validate with from and to coordinates
- * @param {Array} board - The current board state
- * @param {String} currentPlayer - The current player ('white' or 'black')
- * @returns {Boolean} - Whether the move is valid
- */
-function isValidMove(move, board, currentPlayer) {
-    if (!move || !move.from || !move.to) return false;
-    
-    const { from, to } = move;
-    
-    // Check if the coordinates are within the board
-    if (from.row < 0 || from.row > 7 || from.col < 0 || from.col > 7 ||
-        to.row < 0 || to.row > 7 || to.col < 0 || to.col > 7) {
-        return false;
-    }
-    
-    // Check if the starting square has a piece of the current player's color
-    const piece = board[from.row][from.col];
-    if (!piece || piece.color !== currentPlayer) {
-        return false;
-    }
-    
-    // Simple validation for basic piece movement patterns
-    // A more comprehensive validation would use the moveCalculator functions
-    
-    // For pawns
-    if (piece.type.toLowerCase() === 'pawn') {
-        const direction = piece.color === 'white' ? -1 : 1;
-        const isStartingRow = (piece.color === 'white' && from.row === 6) || 
-                              (piece.color === 'black' && from.row === 1);
-        
-        // Forward move (1 square)
-        if (to.col === from.col && to.row === from.row + direction && !board[to.row][to.col]) {
-            return true;
-        }
-        
-        // Forward move (2 squares from starting position)
-        if (to.col === from.col && to.row === from.row + 2 * direction && isStartingRow && 
-            !board[from.row + direction][from.col] && !board[to.row][to.col]) {
-            return true;
-        }
-        
-        // Diagonal capture
-        if (Math.abs(to.col - from.col) === 1 && to.row === from.row + direction && 
-            board[to.row][to.col] && board[to.row][to.col].color !== currentPlayer) {
-            return true;
-        }
-        
-        return false;
-    }
-    
-    // For knights
-    if (piece.type.toLowerCase() === 'knight') {
-        const rowDiff = Math.abs(to.row - from.row);
-        const colDiff = Math.abs(to.col - from.col);
-        
-        // Knights move in an L shape (2+1 pattern)
-        return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2);
-    }
-    
-    // For simplicity, we'll return true for other pieces
-    // In a real implementation, you'd check proper movement patterns for all pieces
-    return true;
-}
-
-/**
- * Gets a fallback move when the LLM suggestion is invalid
- * @param {Array} board - The current board state
- * @param {String} currentPlayer - The current player ('white' or 'black')
- * @returns {Object|null} - A valid move with from and to coordinates
- */
-function getFallbackMove(board, currentPlayer) {
-    console.log("Using fallback move selection strategy");
-    
-    try {
-        // Import the required functions synchronously to avoid potential issues
-        const moveCalculator = require('../utils/moveCalculator');
-        const checkDetection = require('../utils/checkDetection');
-        
-        // Generate all possible valid moves that don't leave the king in check
-        const allLegalMoves = [];
-        
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const piece = board[row][col];
-                if (piece && piece.color === currentPlayer) {
-                    // Use the same move calculation functions as the main chess logic
-                    let possibleMoves = [];
-                    
-                    switch (piece.type.toLowerCase()) {
-                        case 'pawn':
-                            possibleMoves = moveCalculator.calculatePawnMoves(row, col, piece, board);
-                            break;
-                        case 'rook':
-                            possibleMoves = moveCalculator.calculateRookMoves(row, col, piece, board);
-                            break;
-                        case 'knight':
-                            possibleMoves = moveCalculator.calculateKnightMoves(row, col, piece, board);
-                            break;
-                        case 'bishop':
-                            possibleMoves = moveCalculator.calculateBishopMoves(row, col, piece, board);
-                            break;
-                        case 'queen':
-                            possibleMoves = moveCalculator.calculateQueenMoves(row, col, piece, board);
-                            break;
-                        case 'king':
-                            possibleMoves = moveCalculator.calculateKingMoves(row, col, piece, board);
-                            break;
-                        default:
-                            break;
-                    }
-                    
-                    // Filter only legal moves that don't leave king in check
-                    const legalMoves = checkDetection.getLegalMoves(row, col, piece, board, possibleMoves);
-                    
-                    legalMoves.forEach(move => {
-                        allLegalMoves.push({
-                            from: { row, col },
-                            to: move,
-                            piece
-                        });
-                    });
+                    throw new Error("Could not convert board state to FEN notation");
                 }
             }
         }
         
-        if (allLegalMoves.length > 0) {
-            // Choose a random legal move
-            const randomIndex = Math.floor(Math.random() * allLegalMoves.length);
-            return allLegalMoves[randomIndex];
-        }
+        // First get Stockfish analysis
+        console.log('-------------------------------------------');
+        console.log('STEP 2: Sending FEN to Stockfish API:', fen);
+        console.log('-------------------------------------------');
         
-        console.error("No legal moves available!");
-        return null;
-    } catch (error) {
-        console.error("Error in fallback move selection:", error);
-        
-        // Last resort fallback - find any piece that can move
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const piece = board[row][col];
-                if (piece && piece.color === currentPlayer) {
-                    // Try simple moves for each piece type
-                    if (piece.type.toLowerCase() === 'pawn') {
-                        const direction = currentPlayer === 'white' ? -1 : 1;
-                        const newRow = row + direction;
-                        if (newRow >= 0 && newRow < 8 && !board[newRow][col]) {
-                            return {
-                                from: { row, col },
-                                to: { row: newRow, col }
-                            };
-                        }
-                    }
-                    else if (piece.type.toLowerCase() === 'knight') {
-                        // Try knight moves
-                        const knightMoves = [
-                            { rowDiff: -2, colDiff: -1 },
-                            { rowDiff: -2, colDiff: 1 },
-                            { rowDiff: -1, colDiff: -2 },
-                            { rowDiff: -1, colDiff: 2 },
-                            { rowDiff: 1, colDiff: -2 },
-                            { rowDiff: 1, colDiff: 2 },
-                            { rowDiff: 2, colDiff: -1 },
-                            { rowDiff: 2, colDiff: 1 }
-                        ];
-                        
-                        for (const move of knightMoves) {
-                            const newRow = row + move.rowDiff;
-                            const newCol = col + move.colDiff;
-                            
-                            if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-                                if (!board[newRow][newCol] || board[newRow][newCol].color !== currentPlayer) {
-                                    return {
-                                        from: { row, col },
-                                        to: { row: newRow, col: newCol }
-                                    };
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        return null;
-    }
-}
-
-/**
- * Converts a move in algebraic notation to board coordinates
- * @param {String} moveNotation - The move in algebraic notation (e.g., "e4", "Nf3")
- * @param {Array} board - The current board state
- * @param {String} currentPlayer - The current player ('white' or 'black')
- * @returns {Object|null} - The from and to positions, or null if conversion fails
- */
-function convertAlgebraicMoveToCoordinates(moveNotation, board, currentPlayer) {
-    // Handle castling
-    if (moveNotation === "O-O") { // Kingside castling
-        const row = currentPlayer === 'white' ? 7 : 0;
-        return {
-            from: { row, col: 4 },
-            to: { row, col: 6 }
-        };
-    }
-    
-    if (moveNotation === "O-O-O") { // Queenside castling
-        const row = currentPlayer === 'white' ? 7 : 0;
-        return {
-            from: { row, col: 4 },
-            to: { row, col: 2 }
-        };
-    }
-    
-    // Remove check and checkmate symbols
-    const cleanNotation = moveNotation.replace(/[+#]/g, '');
-    
-    // Extract destination square (last two characters in most cases)
-    const destFile = cleanNotation.slice(-2, -1).toLowerCase();
-    const destRank = cleanNotation.slice(-1);
-    
-    // Convert algebraic coordinates to array indices
-    const destCol = destFile.charCodeAt(0) - 'a'.charCodeAt(0);
-    const destRow = 8 - parseInt(destRank);
-    
-    // Determine piece type
-    let pieceType = 'pawn'; // Default to pawn
-    if (/^[KQRBN]/.test(cleanNotation)) {
-        pieceType = {
-            'K': 'king',
-            'Q': 'queen',
-            'R': 'rook',
-            'B': 'bishop',
-            'N': 'knight'
-        }[cleanNotation[0]];
-    }
-    
-    // Search the board for pieces of the current player's color and matching type
-    const candidatePieces = [];
-    for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-            const piece = board[row][col];
-            if (piece && piece.color === currentPlayer && piece.type.toLowerCase() === pieceType) {
-                candidatePieces.push({ piece, row, col });
-            }
-        }
-    }
-    
-    // For pawn captures (e.g., "exd5")
-    if (pieceType === 'pawn' && cleanNotation.includes('x')) {
-        const sourceFile = cleanNotation[0];
-        const sourceCol = sourceFile.charCodeAt(0) - 'a'.charCodeAt(0);
-        
-        // Find a pawn in the correct column that can capture to the destination
-        for (const { row, col } of candidatePieces) {
-            if (col === sourceCol) {
-                // In a capture, a pawn moves diagonally
-                if (Math.abs(col - destCol) === 1 && 
-                    ((currentPlayer === 'white' && row - 1 === destRow) || 
-                     (currentPlayer === 'black' && row + 1 === destRow))) {
-                    
-                    // Create and validate the move
-                    const move = {
-                        from: { row, col },
-                        to: { row: destRow, col: destCol }
-                    };
-                    
-                    if (canPieceMoveTo(board, move.from, move.to, currentPlayer)) {
-                        return move;
-                    }
-                }
-            }
-        }
-    }
-    
-    // For regular pawn moves (e.g., "e4")
-    if (pieceType === 'pawn' && !cleanNotation.includes('x')) {
-        // Find the pawn in the same column as the destination
-        for (const { row, col } of candidatePieces) {
-            if (col === destCol) {
-                // Pawns move forward 1 or 2 squares
-                const direction = currentPlayer === 'white' ? -1 : 1;
-                if (
-                    (row + 2 * direction === destRow &&
-                        ((row === 1 && currentPlayer === 'black') || (row === 6 && currentPlayer === 'white')))
-                ) {
-                
-                    // Create and validate the move
-                    const move = {
-                        from: { row, col },
-                        to: { row: destRow, col: destCol }
-                    };
-                    
-                    if (canPieceMoveTo(board, move.from, move.to, currentPlayer)) {
-                        return move;
-                    }
-                }
-            }
-        }
-    }
-    
-    // For other pieces, check disambiguation hints first if available
-    if (candidatePieces.length > 1) {
-        // If there are disambiguation hints (like Nbd7 where 'b' is the file)
-        if (cleanNotation.length > 1) {
-            const hint = cleanNotation[1];
+        let stockfishResponse;
+        try {
+            const { getBestMove } = await import('./stockfishapi');
+            stockfishResponse = await getBestMove(fen);
             
-            // Check if hint is a file (a-h)
-            if (/[a-h]/.test(hint)) {
-                const hintCol = hint.charCodeAt(0) - 'a'.charCodeAt(0);
-                const filteredCandidates = candidatePieces.filter(({ col }) => col === hintCol);
-                
-                // Try each filtered candidate
-                for (const { row, col } of filteredCandidates) {
-                    const move = {
-                        from: { row, col },
-                        to: { row: destRow, col: destCol }
-                    };
-                    
-                    if (canPieceMoveTo(board, move.from, move.to, currentPlayer)) {
-                        return move;
-                    }
-                }
+            if (!stockfishResponse) {
+                throw new Error("Failed to get response from Stockfish API");
             }
             
-            // Check if hint is a rank (1-8)
-            if (/[1-8]/.test(hint)) {
-                const hintRow = 8 - parseInt(hint);
-                const filteredCandidates = candidatePieces.filter(({ row }) => row === hintRow);
-                
-                // Try each filtered candidate
-                for (const { row, col } of filteredCandidates) {
-                    const move = {
-                        from: { row, col },
-                        to: { row: destRow, col: destCol }
-                    };
-                    
-                    if (canPieceMoveTo(board, move.from, move.to, currentPlayer)) {
-                        return move;
-                    }
-                }
-            }
+            console.log('-------------------------------------------');
+            console.log('STEP 2.5: Received Stockfish response:', stockfishResponse);
+            console.log('-------------------------------------------');
+        } catch (stockfishError) {
+            console.error("Stockfish API error:", stockfishError);
+            throw new Error("Stockfish API error: " + stockfishError.message);
         }
-    }
-    
-    // No disambiguation or disambiguation didn't work - check all candidates
-    // Use piece-specific move validation to find which piece can actually make the move
-    for (const { row, col } of candidatePieces) {
-        const move = {
-            from: { row, col },
-            to: { row: destRow, col: destCol }
+        
+        // Then send Stockfish analysis to the LLM
+        let algebraicMove;
+        try {
+            algebraicMove = await fetchLLMResponse(stockfishResponse);
+        } catch (llmError) {
+            console.error("LLM error:", llmError);
+            throw new Error("LLM error: " + llmError.message);
+        }
+        
+        // Validate the algebraic move
+        if (!algebraicMove || algebraicMove.includes("Error")) {
+            throw new Error("Invalid move from LLM: " + algebraicMove);
+        }
+        
+        const result = {
+            from: stockfishResponse.from,
+            to: stockfishResponse.to,
+            notation: algebraicMove,
+            fen: stockfishResponse.fen,
+            evaluation: stockfishResponse.eval
         };
         
-        if (canPieceMoveTo(board, move.from, move.to, currentPlayer)) {
-            return move;
-        }
-    }
-    
-    console.error("Could not determine valid piece for move:", moveNotation);
-    return null;
-}
-
-/**
- * Checks if a piece can move from one position to another according to chess rules
- * @param {Array} board - The current board state
- * @param {Object} from - The starting position {row, col}
- * @param {Object} to - The destination position {row, col}
- * @param {String} playerColor - The current player's color
- * @returns {Boolean} - Whether the move is valid
- */
-function canPieceMoveTo(board, from, to, playerColor) {
-    const piece = board[from.row][from.col];
-    if (!piece || piece.color !== playerColor) {
-        return false;
-    }
-    
-    // Check if destination has friendly piece
-    if (board[to.row][to.col] && board[to.row][to.col].color === playerColor) {
-        return false;
-    }
-    
-    const pieceType = piece.type.toLowerCase();
-    
-    // Check movement rules for different piece types
-    switch (pieceType) {
-        case 'pawn': 
-            return canPawnMoveTo(board, from, to, playerColor);
-        case 'knight':
-            return canKnightMoveTo(board, from, to);
-        case 'bishop':
-            return canBishopMoveTo(board, from, to);
-        case 'rook':
-            return canRookMoveTo(board, from, to);
-        case 'queen':
-            return canQueenMoveTo(board, from, to);
-        case 'king':
-            return canKingMoveTo(board, from, to);
-        default:
-            return false;
+        console.log('-------------------------------------------');
+        console.log('STEP 5: Final move result:', result);
+        console.log('-------------------------------------------');
+        
+        return result;
+    } catch (error) {
+        console.error("Error in getNextMove:", error);
+        throw error; // Re-throw the error to ensure the fallback is used
     }
 }
 
-/**
- * Checks if a pawn can move to the specified position
- */
-function canPawnMoveTo(board, from, to, playerColor) {
-    const direction = playerColor === 'white' ? -1 : 1;
-    const isStartingRow = (playerColor === 'white' && from.row === 6) || 
-                          (playerColor === 'black' && from.row === 1);
-    
-    // Forward move (1 square)
-    if (to.col === from.col && to.row === from.row + direction && !board[to.row][to.col]) {
-        return true;
-    }
-    
-    // Forward move (2 squares from starting position)
-    if (to.col === from.col && to.row === from.row + 2 * direction && 
-        isStartingRow && !board[from.row + direction][from.col] && !board[to.row][to.col]) {
-        return true;
-    }
-    
-    // Diagonal capture
-    if (Math.abs(to.col - from.col) === 1 && to.row === from.row + direction && 
-        board[to.row][to.col] && board[to.row][to.col].color !== playerColor) {
-        return true;
-    }
-    
-    // En passant would need additional game state information
-    // Not implemented here for simplicity
-    
-    return false;
-}
-
-/**
- * Checks if a knight can move to the specified position
- */
-function canKnightMoveTo(board, from, to) {
-    const rowDiff = Math.abs(to.row - from.row);
-    const colDiff = Math.abs(to.col - from.col);
-    
-    // Knights move in an L shape (2+1 pattern)
-    return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2);
-}
-
-/**
- * Checks if a bishop can move to the specified position
- */
-function canBishopMoveTo(board, from, to) {
-    const rowDiff = Math.abs(to.row - from.row);
-    const colDiff = Math.abs(to.col - from.col);
-    
-    // Bishops move diagonally (equal row and column changes)
-    if (rowDiff !== colDiff) {
-        return false;
-    }
-    
-    // Check for pieces in the path
-    const rowStep = to.row > from.row ? 1 : -1;
-    const colStep = to.col > from.col ? 1 : -1;
-    
-    let currentRow = from.row + rowStep;
-    let currentCol = from.col + colStep;
-    
-    while (currentRow !== to.row && currentCol !== to.col) {
-        if (board[currentRow][currentCol]) {
-            return false; // Path is blocked
-        }
-        currentRow += rowStep;
-        currentCol += colStep;
-    }
-    
-    return true;
-}
-
-/**
- * Checks if a rook can move to the specified position
- */
-function canRookMoveTo(board, from, to) {
-    // Rooks move in straight lines (either row or column stays the same)
-    if (from.row !== to.row && from.col !== to.col) {
-        return false;
-    }
-    
-    // Check for pieces in the path
-    if (from.row === to.row) {
-        // Horizontal move
-        const step = to.col > from.col ? 1 : -1;
-        for (let col = from.col + step; col !== to.col; col += step) {
-            if (board[from.row][col]) {
-                return false; // Path is blocked
-            }
-        }
-    } else {
-        // Vertical move
-        const step = to.row > from.row ? 1 : -1;
-        for (let row = from.row + step; row !== to.row; row += step) {
-            if (board[row][from.col]) {
-                return false; // Path is blocked
-            }
-        }
-    }
-    
-    return true;
-}
-
-/**
- * Checks if a queen can move to the specified position
- */
-function canQueenMoveTo(board, from, to) {
-    // Queen combines rook and bishop movements
-    return canRookMoveTo(board, from, to) || canBishopMoveTo(board, from, to);
-}
-
-/**
- * Checks if a king can move to the specified position
- */
-function canKingMoveTo(board, from, to) {
-    const rowDiff = Math.abs(to.row - from.row);
-    const colDiff = Math.abs(to.col - from.col);
-    
-    // King moves one square in any direction
-    return rowDiff <= 1 && colDiff <= 1;
-    
-    // Castling would need additional game state information
-    // Not implemented here for simplicity
-}
-
-// Export both functions
-export { fetchChatResponse, getLLMNextMove };
+// Export both the original getLLMNextMove name for backward compatibility
+// and the new getNextMove name
+export { fetchLLMResponse, getNextMove, getNextMove as getLLMNextMove };
