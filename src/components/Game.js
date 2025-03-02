@@ -54,9 +54,7 @@ const Game = () => {
       <div className="game-info">
         <div className="player-turn">
           Current turn: <span className={currentPlayer}>{currentPlayer}</span>
-          <div className="player-info">
-  <span className={playerColor} style={{ fontStyle: 'italic', fontWeight: 'normal' }}>Player: {playerColor}</span>
-</div>
+      
         </div>
 
         <button className="restart-game-button" onClick={restartGame}>
@@ -83,6 +81,10 @@ const Game = () => {
         onRestart={restartGame}
         onSelectColor={handleColorSelect}
       />
+
+<div className="player-info">
+  <span className={playerColor} >You : {playerColor}</span>
+</div>
     </div>
   );
 };
