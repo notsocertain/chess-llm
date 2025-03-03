@@ -174,6 +174,8 @@ async function fetchLLMResponse(stockfishResponse) {
         }
 
         const data = await response.json();
+        await new Promise(resolve => setTimeout(resolve, 3050));
+
         
         // Extract the move from the API response
         const responseContent = data.choices?.[0]?.message?.content?.trim();
