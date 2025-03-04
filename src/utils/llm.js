@@ -174,6 +174,7 @@ async function fetchLLMResponse(stockfishResponse) {
         }
 
         const data = await response.json();
+        // Add a delay of 2 seconds (2000 milliseconds)
         await new Promise(resolve => setTimeout(resolve, 3050));
 
         
