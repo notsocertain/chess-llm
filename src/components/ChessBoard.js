@@ -21,9 +21,9 @@ import { moveToAlgebraicNotation } from '../utils/chessNotation';
 import { getNextMove } from '../utils/llm';
 // Remove evaluateBoard from import since it's not used
 import { getBestMove } from '../utils/chessAI';
-import { 
-  boardArrayToFen
-} from '../utils/chessUtils';
+// import { 
+//   boardArrayToFen
+// } from '../utils/chessUtils';
 // Import the random trash talk generator
 import { getRandomTrashTalk } from '../utils/trashTalkData';
 import '../styles/ChessBoard.css';
@@ -61,43 +61,141 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
   // Track fullmove number (increments after Black's move)
   const [fullmoveNumber, setFullmoveNumber] = useState(1);
 
-  // Function to generate accurate FEN from current board state
-  const generateCurrentFen = useCallback(() => {
-    const turn = currentPlayer === 'white' ? 'w' : 'b';
-    let enPassantStr = '-'; // Default value if no en passant target
+  // Move the checkEnPassantPossible function above generateCurrentFen
+  // Helper function to determine if any pawn can actually perform an en passant capture
+  const checkEnPassantPossible = useCallback(() => {
+    // If there's no en passant target, no capture is possible
+    if (!enPassantTarget) return false;
     
-    if (enPassantTarget) {
-      // The enPassant target is the square behind the pawn that just made a double move
-      // For white pawn that moved from row 6 to 4, the enPassant square is on row 5
-      // For black pawn that moved from row 1 to 3, the enPassant square is on row 2
-      const file = String.fromCharCode(97 + enPassantTarget.col); // 'a' to 'h'
-      
-      // The rank depends on the direction the pawn moved
-      let rank;
-      if (enPassantTarget.color === 'white') {
-        // White pawn moved down the board (from row 6 to row 4)
-        rank = 3; // The square behind is on rank 3 (index 5)
-      } else {
-        // Black pawn moved up the board (from row 1 to row 3)
-        rank = 6; // The square behind is on rank 6 (index 2)
+    const targetCol = enPassantTarget.col;
+    const targetRow = enPassantTarget.row;
+    const oppositeColor = enPassantTarget.color === 'white' ? 'black' : 'white';
+    
+    // Check if there's an opposing pawn to the left or right of the enPassant target
+    // that could potentially capture
+    const leftCol = targetCol - 1;
+    const rightCol = targetCol + 1;
+    
+    // For white pawns that moved two squares from row 6 to 4,
+    // check if there are black pawns at positions [4, 3] or [4, 5]
+    // For black pawns that moved two squares from row 1 to 3,
+    // check if there are white pawns at positions [3, 2] or [3, 4]
+    
+    if (leftCol >= 0) {
+      const leftPiece = board[targetRow][leftCol];
+      if (leftPiece && leftPiece.type === 'pawn' && leftPiece.color === oppositeColor) {
+        return true;
       }
-      
-      enPassantStr = file + (8 - rank);
     }
     
-    // Generate FEN with all the proper state
-    const fen = boardArrayToFen(
-      board, 
-      turn, 
-      castlingRights, 
-      enPassantStr,
-      halfmoveClock,
-      fullmoveNumber
-    );
+    if (rightCol < 8) {
+      const rightPiece = board[targetRow][rightCol];
+      if (rightPiece && rightPiece.type === 'pawn' && rightPiece.color === oppositeColor) {
+        return true;
+      }
+    }
+    
+    return false;
+  }, [board, enPassantTarget]);
+
+  // Function to generate accurate FEN from current board state
+
+  const generateCurrentFen = useCallback(() => {
+    // 1. Piece placement string calculation remains unchanged
+    let piecePlacement = '';
+    for (let row = 0; row < 8; row++) {
+      let emptyCount = 0;
+      
+      for (let col = 0; col < 8; col++) {
+        const piece = board[row][col];
+        
+        if (!piece) {
+          emptyCount++;
+        } else {
+          if (emptyCount > 0) {
+            piecePlacement += emptyCount;
+            emptyCount = 0;
+          }
+          
+          let pieceChar = '';
+          switch (piece.type) {
+            case 'pawn': pieceChar = 'p'; break;
+            case 'rook': pieceChar = 'r'; break;
+            case 'knight': pieceChar = 'n'; break;
+            case 'bishop': pieceChar = 'b'; break;
+            case 'queen': pieceChar = 'q'; break;
+            case 'king': pieceChar = 'k'; break;
+            default: pieceChar = '?'; break;
+          }
+          
+          if (piece.color === 'white') {
+            pieceChar = pieceChar.toUpperCase();
+          }
+          
+          piecePlacement += pieceChar;
+        }
+      }
+      
+      if (emptyCount > 0) {
+        piecePlacement += emptyCount;
+      }
+      
+      if (row < 7) {
+        piecePlacement += '/';
+      }
+    }
+    
+    // 2. Active color
+    const turn = currentPlayer === 'white' ? 'w' : 'b';
+    
+    // 3. Castling rights
+    let castling = '';
+    if (castlingRights.K) castling += 'K';
+    if (castlingRights.Q) castling += 'Q';
+    if (castlingRights.k) castling += 'k';
+    if (castlingRights.q) castling += 'q';
+    castling = castling || '-'; // Use '-' if no castling rights
+    
+    // 4. En passant target - FIXED VERSION
+    let enPassantStr = '-'; // Default: no en passant target
+    
+    // Only set en passant target if it was just created by the previous move
+    // and the current player has the opportunity to capture
+    if (enPassantTarget) {
+      // Only include en passant square if there's a pawn that can actually capture
+      const canCapture = checkEnPassantPossible();
+      
+      if (canCapture) {
+        const file = String.fromCharCode(97 + enPassantTarget.col); // 'a' to 'h'
+        
+        // Important: The rank must match the square that was skipped over,
+        // not the one where the pawn landed
+        let rank;
+        if (enPassantTarget.color === 'white') {
+          // White pawn moved e2->e4, en passant square is e3
+          rank = 3;
+        } else {
+          // Black pawn moved e7->e5, en passant square is e6
+          rank = 6;
+        }
+        
+        enPassantStr = file + rank;
+        console.log("En passant target set to:", enPassantStr);
+      }
+    }
+    
+    // 5. Halfmove clock
+    const halfmoveClockStr = halfmoveClock.toString();
+    
+    // 6. Fullmove number
+    const fullmoveNumberStr = fullmoveNumber.toString();
+    
+    // Combine all parts into FEN
+    const fen = `${piecePlacement} ${turn} ${castling} ${enPassantStr} ${halfmoveClockStr} ${fullmoveNumberStr}`;
     
     console.log("Generated FEN:", fen);
     return fen;
-  }, [board, castlingRights, currentPlayer, enPassantTarget, halfmoveClock, fullmoveNumber]);
+  }, [board, castlingRights, currentPlayer, enPassantTarget, halfmoveClock, fullmoveNumber, checkEnPassantPossible]); // Added checkEnPassantPossible to the dependency array
 
   // Update debug logs whenever board changes, but don't save to state
   useEffect(() => {
