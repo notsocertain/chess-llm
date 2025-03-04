@@ -38,7 +38,7 @@ Return a JSON object containing:
 }
 
 No extra text, only the JSON output.
-The trash talk should be witty, competitive, and fun.
+The trash talk should be short no longer than single phrase
 
 Input Format:
 You'll receive a Stockfish API response with the following structure:
@@ -175,7 +175,7 @@ async function fetchLLMResponse(stockfishResponse) {
 
         const data = await response.json();
         // Add a delay of 2 seconds (2000 milliseconds)
-        await new Promise(resolve => setTimeout(resolve, 3050));
+        await new Promise(resolve => setTimeout(resolve, 2050));
 
         
         // Extract the move from the API response
