@@ -4,67 +4,85 @@
  * @returns {Promise<string|null>} - URL to the generated audio
  */
 const generateSpeech = async (text) => {
-    // Use the Netlify proxied URL instead of direct HTTP API
+    // Try direct connection first for local development
     const url = "/api/tts";
     const payload = { text };
 
     try {
-        console.log("TTS payload:", payload);
+        console.log(`Sending TTS request to ${url} with payload:`, payload);
         const response = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
         });
 
-        // Check for response status first
+        console.log(`TTS API responded with status: ${response.status}`);
+        
         if (!response.ok) {
-            console.error("TTS API Error Status:", response.status, response.statusText);
-            
-            // Try to safely get response content for debugging
-            try {
-                const responseText = await response.text();
-                console.error("Error response content:", responseText.substring(0, 150) + "...");
-            } catch (e) {
-                console.error("Couldn't read error response");
+            // If we get a 404, try the direct URL as fallback (only for development)
+            if (response.status === 404 && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+                console.log("Trying direct connection to TTS server as fallback");
+                return await tryDirectTtsConnection(text);
             }
             
+            console.error(`TTS API Error: ${response.status} ${response.statusText}`);
             return null;
         }
 
-        // Get response text first to safely handle parsing
-        const responseText = await response.text();
-        console.log("Raw TTS response:", responseText.substring(0, 100) + "...");
-        
-        // Try to parse the response as JSON
-        let data;
+        // Safely attempt to parse JSON response
         try {
-            data = JSON.parse(responseText);
-        } catch (parseError) {
-            console.error("Failed to parse TTS response as JSON:", parseError);
-            console.error("Received non-JSON response (first 150 chars):", 
-                responseText.substring(0, 150));
+            const data = await response.json();
+            console.log("TTS Response:", data);
+            
+            // If the response contains audio URLs that still use HTTP
+            // we need to update those too
+            if (data.audio_url && data.audio_url.startsWith('http://')) {
+                console.log("Warning: Audio URL is still HTTP:", data.audio_url);
+            }
+            
+            return data.audio_url;
+        } catch (jsonError) {
+            console.error("Failed to parse API response as JSON:", jsonError);
             return null;
         }
-
-        console.log("TTS Response parsed:", data);
-        
-        // Transform HTTP audio URLs to use our proxy
-        if (data.audio_url && data.audio_url.startsWith('http://')) {
-            // Replace the HTTP URL with our proxy path
-            const transformedUrl = data.audio_url.replace(
-                'http://165.73.253.224:8005/',
-                '/'
-            );
-            console.log("Original audio URL:", data.audio_url);
-            console.log("Transformed audio URL:", transformedUrl);
-            return transformedUrl;
-        }
-        
-        return data.audio_url;
     } catch (error) {
         console.error("Error in TTS request:", error);
+        
+        // Try direct connection as fallback (only for development)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.log("Trying direct connection to TTS server as fallback after error");
+            return await tryDirectTtsConnection(text);
+        }
+        
         return null;
     }
 };
+
+// Helper function to try direct connection to TTS server
+// This is only for development when Netlify functions aren't working
+async function tryDirectTtsConnection(text) {
+    try {
+        const directUrl = "http://165.73.253.224:8005/tts";
+        console.log(`Trying direct TTS connection to ${directUrl}`);
+        
+        const response = await fetch(directUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+        });
+        
+        if (!response.ok) {
+            console.error(`Direct TTS API Error: ${response.status} ${response.statusText}`);
+            return null;
+        }
+        
+        const data = await response.json();
+        console.log("Direct TTS Response:", data);
+        return data.audio_url;
+    } catch (error) {
+        console.error("Error in direct TTS request:", error);
+        return null;
+    }
+}
 
 export default generateSpeech;
