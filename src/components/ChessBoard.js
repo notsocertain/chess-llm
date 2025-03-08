@@ -28,6 +28,7 @@ import { getBestMove } from '../utils/chessAI';
 import { getRandomTrashTalk } from '../utils/trashTalkData';
 import '../styles/ChessBoard.css';
 import PromotionDialog from './PromotionDialog';
+import HelpButton from './HelpButton';
 
 const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColor }) => {
   // Initialize with properly converted board from FEN
@@ -804,32 +805,43 @@ const ChessBoard = ({ currentPlayer, onMove, moveHistory, onGameOver, playerColo
   };
 
   return (
-    <div className="chess-board">
-      {renderBoard()}
-      {checkStatus[currentPlayer] && (
-        <div className="check-indicator">Check!</div>
-      )}
-      {isAiThinking && (
-        <div className="ai-thinking-indicator">AI is thinking...</div>
-      )}
-      {promotionSquare && (
-        <PromotionDialog
-          color={promotionSquare.color}
-          onSelect={handlePromotion}
-          onClose={() => setPromotionSquare(null)}
+    <div className="chess-board-container">
+      {/* Add the help button before or after your chess board */}
+      <div className="control-buttons">
+        {/* ...existing control buttons... */}
+        <HelpButton 
+          currentFen={generateCurrentFen()} 
+          isPlayerTurn={currentPlayer === playerColor}
         />
-      )}
+      </div>
       
-      {/* Add the TrashTalk component */}
-      <TrashTalk 
-        message={aiTrashTalk} 
-        isVisible={showTrashTalk && !isAiThinking} 
-      />
-      
-      {/* Add FEN display for debugging */}
-      {/* <div className="fen-display" style={{position: 'absolute', bottom: '-30px', left: 0, fontSize: '10px', width: '100%', textAlign: 'center'}}>
-        FEN: {currentFen}
-      </div> */}
+      <div className="chess-board">
+        {renderBoard()}
+        {checkStatus[currentPlayer] && (
+          <div className="check-indicator">Check!</div>
+        )}
+        {isAiThinking && (
+          <div className="ai-thinking-indicator">AI is thinking...</div>
+        )}
+        {promotionSquare && (
+          <PromotionDialog
+            color={promotionSquare.color}
+            onSelect={handlePromotion}
+            onClose={() => setPromotionSquare(null)}
+          />
+        )}
+        
+        {/* Add the TrashTalk component */}
+        <TrashTalk 
+          message={aiTrashTalk} 
+          isVisible={showTrashTalk && !isAiThinking} 
+        />
+        
+        {/* Add FEN display for debugging */}
+        {/* <div className="fen-display" style={{position: 'absolute', bottom: '-30px', left: 0, fontSize: '10px', width: '100%', textAlign: 'center'}}>
+          FEN: {currentFen}
+        </div> */}
+      </div>
     </div>
   );
 };
