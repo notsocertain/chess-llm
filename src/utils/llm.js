@@ -44,11 +44,7 @@ Input Format:
 You'll receive a Stockfish API response with the following structure:
 {
   'turn': 'w' or 'b' (whose turn it is),
-  'from': 'square' (e.g., 'e2'),
-  'to': 'square' (e.g., 'e4'),
   'text': 'Move description and evaluation',
-  'eval': numerical evaluation,
-  'move': 'move in UCI format',
   'fen': 'FEN string of the position'
 }
 
@@ -57,11 +53,7 @@ Examples:
 Example Stockfish Response:
 {
   'turn': 'w',
-  'from': 'e2',
-  'to': 'e4',
   'text': 'Move e2 → e4 [+0.32]. Depth 12.',
-  'eval': 0.32,
-  'move': 'e2e4',
   'fen': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 }
 
@@ -78,9 +70,6 @@ Now, analyze the following Stockfish response and provide the best move in stand
 Strictly Enforced Output Format:
 You must return a valid JSON object with the correct syntax and no additional text or explanation. The JSON must follow this structure exactly:
 
-json
-Copy
-Edit
 {
   "best_move": "{best move in standard algebraic notation}",
   "trash_talk": "{confident and humorous statement about crushing the opponent}"
@@ -124,8 +113,16 @@ If the input has errors, fix them and return only the corrected JSON.
 Do not include explanations, additional text, or formatting outside valid JSON.
 `;
 
-// Define API Key securely
-const API_KEY = "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"; // Replace with your actual API key
+function getRandomItem(list) {
+    return list[Math.floor(Math.random() * list.length)];
+}
+
+// Example usage
+const API_KEYS = [ "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","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","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"];
+
+const API_KEY = getRandomItem(API_KEYS);
+console.log("API_KEY: ", API_KEY);
+
 
 /**
  * Fetches the LLM response based on a Stockfish analysis
@@ -135,10 +132,14 @@ const API_KEY = "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"; // R
 async function fetchLLMResponse(stockfishResponse) {
     const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+    const API_KEY = getRandomItem(API_KEYS);
+
     if (!API_KEY) {
         console.error("Error: API_KEY is missing.");
         throw new Error("API_KEY is missing");
     }
+    console.log("API_KEY: ", API_KEY);
+
     
     console.log('-------------------------------------------');
     console.log('STEP 3: Sending Stockfish response to LLM:', stockfishResponse);
@@ -149,12 +150,15 @@ async function fetchLLMResponse(stockfishResponse) {
         console.error("Invalid stockfish response:", stockfishResponse);
         throw new Error("Invalid stockfish response");
     }
+
+    const filteredResult = (({ text, turn, fen }) => ({ text, turn, fen }))(stockfishResponse);
+
     
     const requestBody = {
         model: "llama3-8b-8192",
         messages: [
             { role: "system", content: prompts },
-            { role: "user", content: JSON.stringify(stockfishResponse) }
+            { role: "user", content: JSON.stringify(filteredResult) }
         ],
     };
 
@@ -174,8 +178,6 @@ async function fetchLLMResponse(stockfishResponse) {
         }
 
         const data = await response.json();
-        // Add a delay of 2 seconds (2000 milliseconds)
-        await new Promise(resolve => setTimeout(resolve, 1050));
 
         
         // Extract the move from the API response

@@ -92,13 +92,13 @@ const HelpButton = ({ currentFen, isPlayerTurn }) => {
     setIsSpeaking(false);
   };
 
-  const toggleSpeech = () => {
-    if (isSpeaking) {
-      stopSpeech();
-    } else if (advice) {
-      speakAdvice(advice);
-    }
-  };
+  // const toggleSpeech = () => {
+  //   if (isSpeaking) {
+  //     stopSpeech();
+  //   } else if (advice) {
+  //     speakAdvice(advice);
+  //   }
+  // };
 
   const getHelpAdvice = async () => {
     if (!currentFen || isLoading) return;
@@ -133,7 +133,7 @@ const HelpButton = ({ currentFen, isPlayerTurn }) => {
       const timer = setTimeout(() => {
         setShowAdvice(false);
         stopSpeech();
-      }, 30000);
+      }, 15000);
       
       return () => clearTimeout(timer);
     } catch (error) {
@@ -182,15 +182,7 @@ const HelpButton = ({ currentFen, isPlayerTurn }) => {
               )}
             </div>
             <div className="advice-controls">
-              {!isLoading && advice && (
-                <button 
-                  className={`speech-button ${isSpeaking ? 'speaking' : ''}`}
-                  onClick={toggleSpeech}
-                  title={isSpeaking ? "Stop speaking" : "Listen to advice"}
-                >
-                  {isSpeaking ? '🔊' : '🔈'}
-                </button>
-              )}
+              
             </div>
             <button className="close-advice" onClick={handleCloseAdvice}>×</button>
           </div>

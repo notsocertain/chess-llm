@@ -162,7 +162,7 @@
   display: flex;
   align-items: center;
 }
-
+/* 
 .speech-button {
   background: none;
   border: none;
@@ -184,7 +184,7 @@
   animation: pulse 1.5s infinite;
   color: #4a7c59;
   opacity: 1;
-}
+} */
 
 @keyframes pulse {
   0% { transform: scale(1); }
