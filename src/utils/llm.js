@@ -126,7 +126,7 @@ Do not include explanations, additional text, or formatting outside valid JSON.
 
 
 // Define API Key securely
-const API_KEY = process.env.GROQ_API_KEY // Replace with your actual API key
+const API_KEY = process.env.REACT_APP_GROQ_API_KEY // Replace with your actual API key
 /**
  * Fetches the LLM response based on a Stockfish analysis
  * @param {Object} stockfishResponse - The response from Stockfish API
