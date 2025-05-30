@@ -124,9 +124,9 @@ If the input has errors, fix them and return only the corrected JSON.
 Do not include explanations, additional text, or formatting outside valid JSON.
 `;
 
-// Define API Key securely
-const API_KEY = "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"; // Replace with your actual API key
 
+// Define API Key securely
+const API_KEY = process.env.GROQ_API_KEY // Replace with your actual API key
 /**
  * Fetches the LLM response based on a Stockfish analysis
  * @param {Object} stockfishResponse - The response from Stockfish API
