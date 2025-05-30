@@ -34,10 +34,14 @@ async function postChessApi(data = {}) {
         }
         
         const result = await response.json();
+        // Extract only 'text', 'turn', and 'fen' properties from the response
+        // const filteredResult = (({ text, turn, fen }) => ({ text, turn, fen }))(result);
+
+
         console.log("-------------------------------------------");
         console.log("Stockfish API response:", result);
         console.log("-------------------------------------------");
-        
+
         return result;
     } catch (error) {
         console.error("StockfishAPI request failed:", error);
