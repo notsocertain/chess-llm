@@ -43,7 +43,7 @@ The best move here is e4. Playing e4 is a strong opening move because it immedia
 `;
 
 // Define API Key securely
-const API_KEY = "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"; // Replace with your actual API key
+const API_KEY = process.env.GROQ_API_KEY // Replace with your actual API key
 
 /**
  * Fetches the LLM response based on a Stockfish analysis
